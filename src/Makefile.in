@@ -55,7 +55,7 @@ HC_OPTS = -static -cpp -fallow-overlapping-instances -fglasgow-exts \
 		-i$(IFACES) $(EXTRA_HC_OPTS)
 
 AG      = @WithAG@
-AG_OPTS = -pmscfr
+AG_OPTS = -mscfr
 
 # Helium sources
 
@@ -158,7 +158,7 @@ ifdef STRIP
 	$(STRIP) $(HELIUMBINDIR)/$(MAIN)$(EXE)
 endif
 
-all: ag depend compiler coreasm lvmrun libraries hi status
+all: ag compiler coreasm lvmrun libraries hi status
 
 coreasm:
 	# make core assembler
