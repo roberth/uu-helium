@@ -1,0 +1,11 @@
+# The language doesn't matter much, because we bring our own packages
+# we do seem to need a correct language template though...
+language: ruby
+sudo: required
+os:
+# OS X currently has to build GHC every time...
+# - osx
+ - linux
+install: bash <(curl https://nixos.org/nix/install)
+script:
+ - bash -c ". ~/.nix-profile/etc/profile.d/nix.sh; nix-build"
