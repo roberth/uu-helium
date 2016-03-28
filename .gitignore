@@ -4,3 +4,7 @@ result-*
 
 # Cabal
 dist/
+
+# Helium / Test suite
+*.lvm
+*.temp

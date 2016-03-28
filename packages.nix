@@ -36,6 +36,7 @@ rec {
                      [ nixpkgs.makeWrapper
 		       nixpkgs.cabal2nix
                        nixpkgs.cabal-install
+		       haskellngPackages.lvmrun
                      ]
                    )));
       Top = self.callPackage ./top.nix {};
