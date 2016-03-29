@@ -8,3 +8,19 @@ dist/
 # Helium / Test suite
 *.lvm
 *.temp
+
+# AG results
+src/Helium/CodeGeneration/CodeGeneration.hs
+src/Helium/ModuleSystem/ExtractImportDecls.hs
+src/Helium/Parser/ResolveOperators.hs
+src/Helium/StaticAnalysis/Directives/TS_Analyse.hs
+src/Helium/StaticAnalysis/Directives/TS_Apply.hs
+src/Helium/StaticAnalysis/Directives/TS_CoreSyntax.hs
+src/Helium/StaticAnalysis/Directives/TS_Syntax.hs
+src/Helium/StaticAnalysis/Directives/TS_ToCore.hs
+src/Helium/StaticAnalysis/Inferencers/KindInferencing.hs
+src/Helium/StaticAnalysis/Inferencers/TypeInferencing.hs
+src/Helium/StaticAnalysis/StaticChecks/StaticChecks.hs
+src/Helium/Syntax/UHA_OneLine.hs
+src/Helium/Syntax/UHA_Pretty.hs
+src/Helium/Syntax/UHA_Syntax.hs

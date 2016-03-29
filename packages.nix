@@ -4,7 +4,11 @@ rec {
     inherit overrides;
   };
   overrides = self: super: {
-      helium = enableParallell (setPostInstall ''
+      helium = enableParallell (
+               setPreBuild ''
+                  (cd src && make)
+                  '' (
+               setPostInstall ''
                   # Link to low-level tools
                   ln -s ${self.lvmrun}/bin/lvmrun $out/bin/
                   ln -s ${self.lvmlib}/bin/coreasm $out/bin/
@@ -37,8 +41,9 @@ rec {
 		       nixpkgs.cabal2nix
                        nixpkgs.cabal-install
 		       haskellngPackages.lvmrun
+		       haskellngPackages.uuagc
                      ]
-                   )));
+                   ))));
       Top = self.callPackage ./top.nix {};
       lvmlib = self.callPackage ./lvmlib.nix {};
   };
@@ -54,6 +59,8 @@ rec {
           nixpkgs.stdenv.lib.overrideDerivation pkg (oldAttrs: { src = filterDir dir; }));
   setPostInstall = (pi : pkg:
      nixpkgs.stdenv.lib.overrideDerivation pkg (oldAttrs: { postInstall = pi; }));
+  setPreBuild = (pb : pkg:
+     nixpkgs.stdenv.lib.overrideDerivation pkg (oldAttrs: { preBuild = pb; }));
   filterDir = builtins.filterSource (path: type: type != "unknown"
 		 && baseNameOf path != ".git"
                  && baseNameOf path != "dist"
