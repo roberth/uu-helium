@@ -2,8 +2,9 @@
 # Re-run ./cabal2nix when the dependencies in the cabal
 # file have changed.
 
-{ mkDerivation, base, containers, directory, filepath, lvmlib, mtl
-, network, parsec, process, stdenv, Top, transformers, wl-pprint
+{ mkDerivation, base, bytestring, containers, directory, filepath
+, lvmlib, mtl, network, parsec, process, stdenv, Top, transformers
+, wl-pprint
 }:
 mkDerivation {
   pname = "helium";
@@ -12,8 +13,8 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    base containers directory filepath lvmlib mtl network parsec
-    process Top transformers wl-pprint
+    base bytestring containers directory filepath lvmlib mtl network
+    parsec process Top transformers wl-pprint
   ];
   executableHaskellDepends = [
     base containers directory filepath lvmlib mtl network parsec

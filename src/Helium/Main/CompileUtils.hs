@@ -39,25 +39,10 @@ p ===> f =
    p >>= either (return . Left . map Left) 
                 (f >=> return . either (Left . map Right) Right)
 
-doPhaseWithExit :: HasMessage err => Int -> ([err] -> String) -> CompileOptions -> Phase err a -> IO a
-doPhaseWithExit nrOfMsgs code (options, fullName, doneModules) phase =
-   do result <- phase
-      case result of
-         Left errs ->
-            do sendLog (code errs) fullName doneModules options
-               showErrorsAndExit errs nrOfMsgs
-         Right a ->
-            return a
-
 sendLog :: String -> String -> [String] -> [Option] -> IO ()
 sendLog code fullName modules =
     logger code (Just (modules,fullName))
     
-enterNewPhase :: String -> [Option] -> IO ()
-enterNewPhase phase options =
-   when (Verbose `elem` options) $
-      putStrLn (phase ++ "...")
-
 showErrorsAndExit :: HasMessage a => [a] -> Int -> IO b
 showErrorsAndExit errors maximumNumber = do
     let someErrors = take maximumNumber (sortMessages errors)

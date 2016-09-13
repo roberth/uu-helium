@@ -1,6 +1,6 @@
 { nixpkgs ? import ./nixpkgs {} }:
 rec {
-  packages = haskellngPackages.override {
+  packages = haskellPackages.override {
     inherit overrides;
   };
   overrides = self: super: {
@@ -38,17 +38,23 @@ rec {
                    (lib.addBuildTools
                      (self.callPackage ./helium.nix {})
                      [ nixpkgs.makeWrapper
-		       nixpkgs.cabal2nix
+		                   nixpkgs.cabal2nix
                        nixpkgs.cabal-install
-		       haskellngPackages.lvmrun
-		       haskellngPackages.uuagc
+                       haskellPackages.lvmrun
+                       haskellPackages.uuagc
                      ]
                    ))));
       Top = self.callPackage ./top.nix {};
+      # lvmlib = setSource (../uu-lvm) (self.callPackage ../uu-lvm/src/lib/lvmlib.nix {});
       lvmlib = self.callPackage ./lvmlib.nix {};
   };
   inherit (packages) helium lvmlib Top;
-  haskellngPackages = nixpkgs.haskellPackages;
+  inherit nixpkgs;
+
+  # lvmlib is currently broken on GHC 8
+  # haskellPackages = nixpkgs.haskellPackages;
+  haskellPackages = nixpkgs.haskell.packages.ghc7103;
+
   lib = nixpkgs.haskell.lib;
   enableParallell = pkg: nixpkgs.stdenv.lib.overrideDerivation pkg (oldAttrs: {
     configurePhase = ''

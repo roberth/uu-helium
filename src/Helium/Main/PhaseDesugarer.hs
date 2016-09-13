@@ -17,18 +17,20 @@ import Helium.Syntax.UHA_Range(noRange)
 import Helium.ModuleSystem.ImportEnvironment()
 import Helium.ModuleSystem.DictionaryEnvironment (DictionaryEnvironment)
 import qualified Helium.CodeGeneration.CodeGeneration as CodeGeneration
+import Helium.MonadCompile
 
-phaseDesugarer :: DictionaryEnvironment -> 
-                  String -> Module -> [CoreDecl] -> 
-                    ImportEnvironment ->
-                    TypeEnvironment -> [Option] -> IO CoreModule
-phaseDesugarer dictionaryEnv fullName module_ extraDecls afterTypeInferEnv toplevelTypes options = do
-    enterNewPhase "Desugaring" options
+phaseDesugarer :: MonadCompile m =>
+                  DictionaryEnvironment ->
+                  String -> Module -> [CoreDecl] ->
+                  ImportEnvironment ->
+                  TypeEnvironment -> m CoreModule
+phaseDesugarer dictionaryEnv fullName module_ extraDecls afterTypeInferEnv toplevelTypes = do
+    enterNewPhase "Desugaring"
 
     let (path, baseName, _) = splitFilePath fullName
         fullNameNoExt = combinePathAndFile path baseName
 
-{- hier kunnen we misschien main inserten en dan is toplevelTypes niet nodig in AG. 
+{- hier kunnen we misschien main inserten en dan is toplevelTypes niet nodig in AG.
 
 en eigenlijk is afterTypeInferEnv te groot. alleen locale types en constructoren hoeven gezien te worden
 
@@ -46,13 +48,13 @@ en eigenlijk is afterTypeInferEnv te groot. alleen locale types en constructoren
 
         strippedCoreModule = coreRemoveDead coreModule
 
-    when (DumpCore `elem` options) $
-        print . pretty $ strippedCoreModule
+    whenEnabled_ DumpCore $ do
+        logMessage . show . pretty $ strippedCoreModule
 
-    when (DumpCoreToFile `elem` options) $ do
-        writeFile (fullNameNoExt ++ ".core") $ show . pretty $ strippedCoreModule
-        exitSuccess
-   
+    whenEnabled_ DumpCoreToFile $ do
+        writeCoreFile (fullNameNoExt ++ ".core") $ show . pretty $ strippedCoreModule
+        abortPositive
+
     return strippedCoreModule
 
 -- | Make sure the module has a name. If there is no name (module without

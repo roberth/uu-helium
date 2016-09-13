@@ -133,7 +133,7 @@ Executable heliumpath
 --------------------------------------------------------------------------------
   
 Library
-  Build-Depends:     base >= 3 && < 5, containers, mtl, parsec, network, process, transformers, filepath, directory, wl-pprint, Top >= 1.7, lvmlib >= 1.1
+  Build-Depends:     base >= 3 && < 5, containers, mtl, parsec, bytestring, network, process, transformers, filepath, directory, wl-pprint, Top >= 1.7, lvmlib >= 1.1
   ghc-options:       -Wall
   default-language:  Haskell98
   hs-source-dirs:    src
@@ -146,8 +146,11 @@ Library
     Helium.CodeGeneration.DerivingEq
     Helium.CodeGeneration.DerivingShow
     Helium.CodeGeneration.PatternMatch
+    Helium.Compilation
+    Helium.MonadCompile
     Helium.Main.Args
     Helium.Main.Compile
+    Helium.Main.CompileIO
     Helium.Main.CompileUtils
     Helium.Main.PhaseCodeGenerator
     Helium.Main.PhaseDesugarer

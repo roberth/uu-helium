@@ -13,12 +13,13 @@ import Helium.Parser.LexerToken(Token)
 import Helium.Parser.Parser (module_)
 import Helium.Parser.ParseLibrary(runHParser)
 import Text.ParserCombinators.Parsec.Error (ParseError)
+import Helium.MonadCompile
 
-phaseParser :: 
+phaseParser :: MonadCompile m =>
    String -> [Token] -> [Option] -> 
-   Phase ParseError Module
+   m (Either [ParseError] Module)
 phaseParser fullName tokens options = do
-    enterNewPhase "Parsing" options
+    enterNewPhase "Parsing"
     case runHParser module_ fullName tokens True of
         Left parseError ->
             return (Left [parseError])

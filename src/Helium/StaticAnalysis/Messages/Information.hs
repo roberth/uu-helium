@@ -19,11 +19,9 @@ data InfoItem
    | TypeClass String Class
    | NotDefined String
 
-showInformation :: Bool -> [Option] -> ImportEnvironment -> IO ()
-showInformation reportNotFound options importEnv =
-   let items = concat [ makeInfoItem name | Information name <- options ]
-   in showMessages items
- 
+showInformation' :: Bool -> [Option] -> ImportEnvironment -> [InfoItem]
+showInformation' reportNotFound options importEnv =
+   concat [ makeInfoItem name | Information name <- options ]
  where
    makeInfoItem :: String -> [InfoItem]
    makeInfoItem string =

@@ -6,8 +6,8 @@ mkDerivation {
   version = "1.2";
   src = fetchgit {
                          url = "https://github.com/roberth/uu-lvm";
-                         rev = "a8060cd143a74b3a5bab0145cf7255fe32f434bc";
-                         sha256 = "054kkyabif6dba1ljsm0d632v17by2sg4nkq6qgz6qi4z18lgf9z";
+                         rev = "4d62a7c47ff932298ce6e54415f4bad411c7ed3f";
+                         sha256 = "1rdxm7z2j2950gpswh89pz96jldl8mq89alfv8k8crmlmhc66qnm";
                        };
   postUnpack = "export sourceRoot=$sourceRoot/src/lib; pwd";
   isLibrary = true;

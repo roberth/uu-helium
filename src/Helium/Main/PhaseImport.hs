@@ -15,38 +15,40 @@ import Lvm.Common.Id(Id, stringFromId)
 import Helium.Syntax.UHA_Syntax
 import Helium.Syntax.UHA_Utils
 import Helium.Syntax.UHA_Range(noRange)
-import Lvm.Path(searchPath)
-import Lvm.Import(lvmImportDecls)
+import Lvm.Read(lvmRead)
+import Lvm.Import(lvmImportDecls')
 import Helium.ModuleSystem.CoreToImportEnv(getImportEnvironment)
 import qualified Helium.ModuleSystem.ExtractImportDecls as EID
 import Data.List(isPrefixOf)
+import Helium.MonadCompile
 
-phaseImport :: String -> Module -> [String] -> [Option] -> 
-                    IO ([Core.CoreDecl], [ImportEnvironment])
-phaseImport fullName module_ lvmPath options = do
-    enterNewPhase "Importing" options
+phaseImport :: MonadCompile m => String -> Module -> m ([Core.CoreDecl], [ImportEnvironment])
+phaseImport fullName module_ = do
+    enterNewPhase "Importing"
 
     let (_, baseName, _) = splitFilePath fullName
 
     -- Add HeliumLang and Prelude import
     let moduleWithExtraImports = addImplicitImports module_
-                    
+
     -- Chase imports
-    chasedImpsList <- chaseImports lvmPath moduleWithExtraImports
+    chasedImpsList <- chaseImports moduleWithExtraImports
 
     let indirectionDecls   = concat chasedImpsList
-        importEnvs = 
+        importEnvs =
             map (getImportEnvironment baseName) chasedImpsList
-    
+
     return (indirectionDecls, importEnvs)
 
-chaseImports :: [String] -> Module -> IO [[Core.CoreDecl]]
-chaseImports lvmPath fromModule = 
+chaseImports :: MonadCompile m => Module -> m [[Core.CoreDecl]]
+chaseImports fromModule =
     let coreImports   = EID.coreImportDecls_Syn_Module $ EID.wrap_Module (EID.sem_Module fromModule) EID.Inh_Module -- Expand imports
-        findModule    = searchPath lvmPath ".lvm" . stringFromId
-        doImport :: (Core.CoreDecl,[Id]) -> IO [Core.CoreDecl]
+        findModule n  = do fileBytes <- findLvmFile n
+                           ns <- createNameSupply
+                           return $ lvmRead ns (stringFromId n) fileBytes
+        doImport :: MonadCompile m => (Core.CoreDecl,[Id]) -> m [Core.CoreDecl]
         doImport (importDecl,hidings)
-          = do decls <- lvmImportDecls findModule [importDecl]
+          = do decls <- lvmImportDecls' findModule [importDecl]
                return [ d
                       | d <- concat decls
                       , let name = Core.declName d

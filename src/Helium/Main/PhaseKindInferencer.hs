@@ -14,16 +14,17 @@ import Helium.StaticAnalysis.Inferencers.KindInferencing as KI
 import qualified Data.Map as M
 import Top.Types
 import Helium.StaticAnalysis.Messages.KindErrors
+import Helium.MonadCompile
 
-phaseKindInferencer :: ImportEnvironment -> Module -> [Option] -> Phase KindError ()
+phaseKindInferencer :: MonadCompile m => ImportEnvironment -> Module -> [Option] -> m (Either [KindError] ())
 phaseKindInferencer importEnvironment module_ options =
-   do enterNewPhase "Kind inferencing" options
+   do enterNewPhase "Kind inferencing"
       let res = KI.wrap_Module (KI.sem_Module module_) KI.Inh_Module {
                    KI.importEnvironment_Inh_Module = importEnvironment,
                    KI.options_Inh_Module = options }
       when (DumpTypeDebug `elem` options) $ 
-         do KI.debugIO_Syn_Module res
-            putStrLn . unlines . map (\(n,ks) -> show n++" :: "++showKindScheme ks) . M.assocs $ KI.kindEnvironment_Syn_Module res
+         do logMessage $ KI.debugString_Syn_Module res
+            logMessage . unlines . map (\(n,ks) -> show n++" :: "++showKindScheme ks) . M.assocs $ KI.kindEnvironment_Syn_Module res
       case KI.kindErrors_Syn_Module res of
       
          _:_ ->

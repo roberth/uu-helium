@@ -11,18 +11,14 @@ module Helium.Main.PhaseCodeGenerator(phaseCodeGenerator) where
 import Lvm.Core.Expr(CoreModule)
 import Helium.Main.CompileUtils
 import Helium.CodeGeneration.CoreToLvm(coreToLvm)
-import qualified Control.Exception as CE (catch, IOException)
+import Helium.MonadCompile
 
-phaseCodeGenerator :: String -> CoreModule -> [Option] -> IO ()
-phaseCodeGenerator fullName coreModule options = do
-    enterNewPhase "Code generation" options
+phaseCodeGenerator :: MonadCompile m => String -> CoreModule -> m ()
+phaseCodeGenerator fullName coreModule = do
+    enterNewPhase "Code generation"
 
     let (path, baseName, _) = splitFilePath fullName
         fullNameNoExt = combinePathAndFile path baseName
 
-    CE.catch (coreToLvm fullNameNoExt coreModule) (\ioErr -> do
-        putStrLn ("Could not write to file '" ++
-            fullNameNoExt ++ ".lvm" ++ "'" ++ show (ioErr :: CE.IOException));
-        exitWith (ExitFailure 1)
-     )
-    
+    bytes <- coreToLvm coreModule
+    writeLvmFile (fullNameNoExt ++ ".lvm") bytes

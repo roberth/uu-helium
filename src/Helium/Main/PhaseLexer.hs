@@ -11,13 +11,14 @@ module Helium.Main.PhaseLexer(phaseLexer) where
 import Helium.Main.CompileUtils
 import Helium.Parser.Lexer
 import Helium.Parser.LayoutRule(layout)
+import Helium.MonadCompile
 
-phaseLexer :: 
+phaseLexer :: MonadCompile m =>
    String -> String -> [Option] -> 
-   Phase LexerError ([LexerWarning], [Token])
+   m (Either [LexerError] ([LexerWarning], [Token]))
 
 phaseLexer fullName contents options = do
-    enterNewPhase "Lexing" options
+    enterNewPhase "Lexing"
 
     case lexer options fullName contents of 
         Left lexError ->
@@ -25,7 +26,7 @@ phaseLexer fullName contents options = do
         Right (tokens, lexerWarnings) -> do
             let tokensWithLayout = layout tokens
             when (DumpTokens `elem` options) $
-                print tokensWithLayout
+                logMessage $ show $ tokensWithLayout
             let warnings = filterLooksLikeFloatWarnings lexerWarnings tokensWithLayout
             return (Right (warnings, tokensWithLayout))
 

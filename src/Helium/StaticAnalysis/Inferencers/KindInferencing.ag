@@ -16,7 +16,7 @@ ATTR Module
    [ importEnvironment : ImportEnvironment
      options           : {[Option]}
    |
-   | debugIO           : {IO ()}
+   | debugString           : {String}
      kindEnvironment   : KindEnvironment
      kindErrors        : KindErrors
    ]
@@ -52,7 +52,7 @@ import Helium.StaticAnalysis.Inferencers.BindingGroupAnalysis (Assumptions, Patt
 
 SEM Module
   | Module   lhs  . kindErrors      = @substitution |-> (map fst @kindErrors)
-                  . debugIO         = putStrLn (show @logEntries)
+                  . debugString     = show @logEntries
              body . kappaUnique     = 0
              loc  . (SolveResult kappaUniqueAtTheEnd substitution _ _ kindErrors, logEntries) = 
                        solve (solveOptions { uniqueCounter = @body.kappaUnique }) @body.constraints greedyConstraintSolver

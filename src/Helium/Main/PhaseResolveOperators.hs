@@ -12,13 +12,14 @@ import Helium.Main.CompileUtils
 import Helium.Parser.ResolveOperators(resolveOperators, operatorsFromModule, ResolveError)
 import qualified Helium.Syntax.UHA_Pretty as PP(sem_Module,wrap_Module,Inh_Module(..),text_Syn_Module)
 import qualified Data.Map as M
+import Helium.MonadCompile
 
-phaseResolveOperators :: 
+phaseResolveOperators :: MonadCompile m =>
    Module -> [ImportEnvironment] -> [Option] -> 
-   Phase ResolveError Module
+   m (Either [ResolveError] Module)
 
 phaseResolveOperators moduleBeforeResolve importEnvs options = do
-    enterNewPhase "Resolving operators" options
+    enterNewPhase "Resolving operators"
 
     let importOperatorTable = 
             M.unions (operatorsFromModule moduleBeforeResolve : map operatorTable importEnvs)
@@ -33,7 +34,7 @@ phaseResolveOperators moduleBeforeResolve importEnvs options = do
           
        [] ->
           do when (DumpUHA `elem` options) $
-                print $ PP.text_Syn_Module $ PP.wrap_Module (PP.sem_Module module_) PP.Inh_Module
+                logMessage $ show $ PP.text_Syn_Module $ PP.wrap_Module (PP.sem_Module module_) PP.Inh_Module
     
              return (Right module_)
 

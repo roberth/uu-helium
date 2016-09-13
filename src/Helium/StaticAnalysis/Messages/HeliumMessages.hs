@@ -10,7 +10,7 @@
         (For instance, one could define another layout, or produce XML-like output).
 -}
 
-module Helium.StaticAnalysis.Messages.HeliumMessages (sortMessages,sortAndShowMessages) where
+module Helium.StaticAnalysis.Messages.HeliumMessages (sortMessages,sortAndShowMessages,showMessage) where
 
 
 import Helium.StaticAnalysis.Messages.Messages 
