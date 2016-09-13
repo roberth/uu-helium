@@ -43,9 +43,10 @@ import Helium.Utils.Utils (internalError)
 import Helium.ModuleSystem.ImportEnvironment hiding (setTypeSynonyms)
 import Helium.StaticAnalysis.Messages.KindErrors
 import Data.Char (isLower)
-import Helium.StaticAnalysis.Inferencers.BindingGroupAnalysis (Assumptions, PatternAssumptions, noAssumptions, combine, single, topSort) 
+import Helium.StaticAnalysis.Inferencers.BindingGroupAnalysis (Assumptions, PatternAssumptions, noAssumptions, combine, single, topSort)
 
 }
+
 
 -------------------------------------------------------------------------------
 -- Semantic functions
@@ -61,6 +62,10 @@ SEM Module
                                         
 
 ATTR Body [ importEnvironment:ImportEnvironment | | constraints:KindConstraints environment:PatternAssumptions ]
+
+{
+  
+}
 
 SEM Body 
   | Hole
@@ -111,6 +116,32 @@ SEM Declaration
             . (cset, aset)  = (M.fromList @tvEnv .===. @type.assumptions) (\n -> unexpected $ "Declaration.TypeSignature " ++ show n) 
             . newGroup      = (M.empty, @aset, @cset ++ @type.constraints ++ [@newConstraint])
 
+  | Class
+       where . bindingGroups = @newGroup : @lhs.bindingGroups
+       simpletype .
+                 kappaUnique = @lhs.kappaUnique + 1
+       loc . newGroup        = ( M.empty :: PatternAssumptions,
+                                 @whereAset `mappend` @ctxAset :: Assumptions,
+                                 @whereCset ++ @ctxCset ++ @context.constraints
+                                            ++ @where.constraints :: KindConstraints)
+       loc . tvEnv           = @simpletype.environment
+       loc . kappaOfRHS      = TVar @lhs.kappaUnique -- unused?
+       loc . constraints     = []
+       loc . (whereCset,
+                  whereAset) = (@tvEnv .===. @where.assumptions)
+                                    (\n -> unexpected $ "Declaration.Class " ++ show n)
+       loc . (ctxCset,
+                    ctxAset) = (@tvEnv .===. @context.assumptions)
+                                    (\n -> unexpected $ "Declaration.Class " ++ show n)
+
+        -- NOTE: The type class constraint itself remains unconstrained.
+        --       It could be constrained to a new kind, 'Constraint'.
+
+  | Instance
+       lhs  . bindingGroups = internalError "KindInferencing.ag" "n/a" "Instance kind inferencing is not supported"
+
+  | Hole
+       lhs . assumptions = noAssumptions
 
 SEM Expression
   | Typed
@@ -136,6 +167,8 @@ SEM SimpleType
 
 ATTR AnnotatedTypes Types [ | constraints:KindConstraints | assumptions:Assumptions kappas:Kinds]
 ATTR AnnotatedType  Type  [ | constraints:KindConstraints | assumptions:Assumptions kappa:Kind ]
+ATTR MaybeDeclarations Declarations Declaration ContextItem ContextItems
+                          [ | constraints:KindConstraints | assumptions:Assumptions ]
 
 SEM Type
   | Application
@@ -155,6 +188,13 @@ SEM Type
        lhs . assumptions = single @name.self @kappa
            . kappaUnique = @lhs.kappaUnique + 1
        loc . kappa       = TVar @lhs.kappaUnique         
+
+  | Qualified
+       lhs . assumptions = @loc.assumptions
+       loc . kappa       = TVar @lhs.kappaUnique
+       type . kappaUnique = @lhs.kappaUnique + 1
+       lhs . kappaUnique = @type.kappaUnique
+
 
 SEM Types 
   | Cons   lhs . assumptions = @hd.assumptions `combine` @tl.assumptions
@@ -181,19 +221,32 @@ SEM Constructor
 SEM Constructors
   | Cons   lhs . assumptions = @hd.assumptions `combine` @tl.assumptions
   | Nil    lhs . assumptions = noAssumptions
-  
+
+SEM MaybeDeclarations
+  | Nothing lhs . assumptions = noAssumptions
+
+SEM Declarations
+  | Cons   lhs . assumptions = @hd.assumptions `combine` @tl.assumptions
+  | Nil    lhs . assumptions = noAssumptions
+
+SEM ContextItems
+  | Nil    lhs . assumptions = noAssumptions
+  | Cons   lhs . assumptions = @hd.assumptions `combine` @tl.assumptions
 
 SEM FieldDeclaration 
   | FieldDeclaration    loc . constraints = internalError "KindInferencing.ag" "n/a" "Field decls are not supported"
 SEM Declaration 
   | Instance loc . constraints = internalError "KindInferencing.ag" "n/a" "instance decls are not supported"
   | Default  loc . constraints = internalError "KindInferencing.ag" "n/a" "default decls is not supported"
-  | Class    loc . (constraints,kappaOfRHS) = internalError "KindInferencing.ag" "n/a" "class decls are not supported"
   | Newtype  loc . (constraints,kappaOfRHS) = internalError "KindInferencing.ag" "n/a" "newtype decls are not supported"
+  | FunctionBindings loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected FunctionBindings while determining assumptions"
+  | PatternBinding   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected PatternBindings while determining assumptions"
+  | Fixity   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected Fixity while determining assumptions"
+  | Empty   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected Empty while determining assumptions"
 SEM ContextItem 
   | ContextItem    loc . constraints = internalError "KindInferencing.ag" "n/a" "ContextItems are not supported"
 SEM Type  
-  | Qualified   loc . (assumptions, kappa) = internalError "KindInferencing.ag" "n/a" "Qualified types are not supported"
+  | Qualified   loc . assumptions = @type.assumptions
   | Forall      loc . (assumptions, kappa) = internalError "KindInferencing.ag" "n/a" "Universal types are not supported"
   | Exists      loc . (assumptions, kappa) = internalError "KindInferencing.ag" "n/a" "Existential types are not supported"
 SEM Constructor
