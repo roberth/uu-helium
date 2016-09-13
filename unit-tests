@@ -1,0 +1,24 @@
+
+# test.ghci contains command definitions for easy iteration during
+#  development.
+
+# -f reloadable causes the library to be interpreted instead of
+# compiled, for quick reloading.
+
+# -j
+# GHCi can compile modules in parallell.
+
+# '+RTS -N':
+# Runs the interpreter on one thread per core.
+# Not sure if throughput increases.
+# Possibly, test latencies will seem a bit inflated because multiple
+# test cases need to wait for the prelude to compile. This may cause
+# early tests to wait.
+
+threads="-j4 +RTS -N"
+command="cabal configure --enable-tests -f reloadable && (cd src && make) && cabal repl --ghc-options='-ghci-script=test.ghci $threads' helium-test"
+
+if which nix-shell >/dev/null
+then nix-shell --run "$command"
+else sh -c "$command"
+fi

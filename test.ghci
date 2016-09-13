@@ -1,0 +1,25 @@
+
+:m + System.Process System.Exit
+:{
+let compile _ =
+      do
+        exitCode <- system "cd src && make"
+        if (exitCode /= ExitSuccess)
+          then error "UUAG Build failure"
+          else return ()
+        return ":r\n:main"
+:}
+:def cr compile
+:m - System.Process System.Exit
+
+:def compile-and-run (return $ return ":cr")
+
+putStrLn ""
+putStrLn "########################################################################"
+putStrLn ""
+putStrLn "   Interactive testing environment initialising..."
+putStrLn ""
+putStrLn "   Enter :cr or :compile-and-run to reload and run the test suite."
+putStrLn ""
+putStrLn "########################################################################"
+putStrLn ""

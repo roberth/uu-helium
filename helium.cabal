@@ -89,6 +89,28 @@ data-files:
 source-repository head
   type:     svn
   location: https://svn.science.uu.nl/repos/sci.hage0101.helium
+
+Flag reloadable
+  Description: Include the library by source, so GHCi can reload it when
+               running the test suite.
+               Decreases iteration time, but increases clean build time
+  Default: False
+
+--------------------------------------------------------------------------------
+
+Test-suite helium-test
+  Type: exitcode-stdio-1.0
+  Main-is:           Main.hs
+  Build-Depends:     base >= 3 && < 5, containers, mtl, parsec, network, process, transformers, filepath, directory, wl-pprint, Top >= 1.7, lvmlib >= 1.1
+                   , tasty, tasty-hunit, bytestring
+  if flag(reloadable)
+    hs-source-dirs:  src
+  else
+    Build-Depends:   helium
+  ghc-options:       -Wall
+  default-language:  Haskell98
+  hs-source-dirs:    src/tests
+ 
   
 --------------------------------------------------------------------------------
 
@@ -225,5 +247,3 @@ Library
     Helium.Utils.Utils
   Other-modules:
     
-
- 
