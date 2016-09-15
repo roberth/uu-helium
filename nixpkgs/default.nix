@@ -2,6 +2,7 @@ let hostNixPkgs = import <nixpkgs> {};
 in import (hostNixPkgs.fetchFromGitHub {
     owner = "NixOS";
     repo = "nixpkgs-channels";
-    rev = "fdd84fd86dc3c63db7d2b54b49958bf26c6eb69a";
-    sha256 = "1vkpmhad7ax9ih6dfxbqzr8n43058x6r876vjfrrry05l9jmrrbg";
+    #branch: nixos-16.09-small
+    rev = "feef017564c292e088de69e97db4071bf08c2853";
+    sha256 = "1jaz4pwva4xg6r8x24g476apg6wr7gl45qv4dlpk109r0hxvm543";
 })
