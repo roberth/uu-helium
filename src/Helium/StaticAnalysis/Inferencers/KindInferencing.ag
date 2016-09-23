@@ -50,6 +50,7 @@ import Top.Solver.Greedy
 import Top.Solver
 import Helium.StaticAnalysis.Miscellaneous.TypeConstraints
 import Helium.Syntax.UHA_Syntax
+import Helium.Syntax.UHA_Utils
 import Helium.Main.Args
 import qualified Data.Map as M
 
@@ -133,14 +134,13 @@ SEM Declaration
 
   | Class
        where . bindingGroups = @newGroup : @lhs.bindingGroups
-       simpletype .
-                 kappaUnique = @lhs.kappaUnique + 1
-       loc . newGroup        = ( M.empty :: PatternAssumptions,
-                                 @whereAset `mappend` @ctxAset :: Assumptions,
-                                 @whereCset ++ @ctxCset ++ @context.constraints
-                                            ++ @where.constraints :: KindConstraints)
+       loc . kappa = @lhs.kappaUnique
+       context . kappaUnique = @kappa + 1
+       loc . newGroup        = ( M.empty
+                               , @whereAset `combine` @ctxAset
+                               , @whereCset ++ @ctxCset ++ @where.constraints ++ @context.constraints )
        loc . tvEnv           = @simpletype.environment
-       loc . kappaOfRHS      = TVar @lhs.kappaUnique -- unused?
+       loc . kappaOfRHS      = TVar @kappa
        loc . constraints     = []
        loc . (whereCset,
                   whereAset) = (@tvEnv .===. @where.assumptions)
@@ -148,9 +148,6 @@ SEM Declaration
        loc . (ctxCset,
                     ctxAset) = (@tvEnv .===. @context.assumptions)
                                     (\n -> unexpected $ "Declaration.Class " ++ show n)
-
-        -- NOTE: The type class constraint itself remains unconstrained.
-        --       It could be constrained to a new kind, 'Constraint'.
 
   | Instance
        lhs  . bindingGroups = internalError "KindInferencing.ag" "n/a" "Instance kind inferencing is not supported"
@@ -248,6 +245,37 @@ SEM ContextItems
   | Nil    lhs . assumptions = noAssumptions
   | Cons   lhs . assumptions = @hd.assumptions `combine` @tl.assumptions
 
+{- Example:
+
+      kConstraint
+    ______/\______
+   /              \
+
+   Distributive f g =>
+
+        |       | |
+        v       | |
+    classType   | |
+                v v
+            kappasVars
+ -}
+
+SEM ContextItem 
+  | ContextItem
+       lhs . kappaUnique   = 2 + length @types.self + @lhs.kappaUnique
+       loc . kappa         = TVar (@lhs.kappaUnique + 1)
+           . kappasVars    = @types.kappas
+
+       loc . classType     = star .->. kConstraint
+       loc . expectedType  = foldr (.->.) kConstraint @kappasVars
+                             -- All classes are currently * -> Constraint
+                             -- FIXME: look up the class
+                             
+       loc . newConstraint = (@classType .==. @expectedType)
+                                  (kindContext @range.self (getNameName @name.self) @classType @expectedType )
+       lhs . constraints   = @newConstraint : @types.constraints
+       lhs . assumptions   = @types.assumptions
+
 SEM FieldDeclaration 
   | FieldDeclaration    loc . constraints = internalError "KindInferencing.ag" "n/a" "Field decls are not supported"
 SEM Declaration 
@@ -258,8 +286,7 @@ SEM Declaration
   | PatternBinding   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected PatternBindings while determining assumptions"
   | Fixity   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected Fixity while determining assumptions"
   | Empty   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected Empty while determining assumptions"
-SEM ContextItem 
-  | ContextItem    loc . constraints = internalError "KindInferencing.ag" "n/a" "ContextItems are not supported"
+  
 SEM Type  
   | Qualified   loc . assumptions = @type.assumptions
   | Forall      loc . (assumptions, kappa) = internalError "KindInferencing.ag" "n/a" "Universal types are not supported"
@@ -275,6 +302,10 @@ type KindConstraints = TypeConstraints KindError
 
 type BindingGroups = [BindingGroup]
 type BindingGroup  = (PatternAssumptions,Assumptions,KindConstraints)
+
+-- | Kind 'Constraint'
+kConstraint :: Kind
+kConstraint = TCon "Constraint"
 
 combineBindingGroup :: BindingGroup -> BindingGroup -> BindingGroup
 combineBindingGroup (e1,a1,c1) (e2,a2,c2) = (e1 `M.union` e2,a1 `combine` a2,c1++c2)

@@ -23,6 +23,7 @@ import qualified Helium.Syntax.UHA_Pretty as PP
 type KindErrors = [KindError]
 data KindError  = MustBeStar Range String Doc Kind
                 | KindApplication Range Doc Doc Kind Kind
+                | KindContext Range String Kind Kind
 
 instance TypeConstraintInfo KindError
 instance PolyTypeConstraintInfo KindError
@@ -36,6 +37,9 @@ kindApplication :: Range -> Type -> Type -> (Kind, Kind) -> KindError
 kindApplication range uhaType1 uhaType2 (kind1, kind2) = 
    KindApplication range (PP.text_Syn_Type $ PP.wrap_Type (PP.sem_Type uhaType1) PP.Inh_Type) (PP.text_Syn_Type $ PP.wrap_Type (PP.sem_Type uhaType2) PP.Inh_Type) kind1 kind2
 
+kindContext :: Range -> String -> Kind -> Kind -> KindError
+kindContext range className actual expected = KindContext range className actual expected
+
 instance Show KindError where 
    show _ = "<kindError>"
 
@@ -45,6 +49,7 @@ instance HasMessage KindError where
       case kindError of
          MustBeStar      r _ _ _   -> [r]
          KindApplication r _ _ _ _ -> [r]
+         KindContext     r _ _ _   -> [r]
 
    getMessage kindError = 
       case kindError of
@@ -66,6 +71,15 @@ instance HasMessage KindError where
                  , "does not match"   >:> MessageType (toTpScheme k2)
                  ]
             ]          
+
+         KindContext _ className actual expected ->
+           [ MessageOneLiner (MessageString "Illegal type in context")
+          , MessageTable
+               [ "referenced class"            <:> MessageString className
+               , "actual kind"                 <:> MessageType (toTpScheme actual)
+               , "used as kind"                <:> MessageType (toTpScheme expected) -- FIXME: will contain
+               ]
+           ]
          
 instance Substitutable KindError where 
 
@@ -73,9 +87,11 @@ instance Substitutable KindError where
       case kindError of
          MustBeStar r s d k            -> MustBeStar r s d (sub |-> k)
          KindApplication r d1 d2 k1 k2 -> KindApplication r d1 d2 (sub |-> k1) (sub |-> k2)
+         KindContext r c k1 k2         -> KindContext r c k1 k2
          
    ftv kindError =
       case kindError of
          MustBeStar      _ _ _ k     -> ftv k
          KindApplication _ _ _ k1 k2 -> ftv k1 `union` ftv k2
+         KindContext _ c k1 k2       -> ftv k1 `union` ftv k2
 
