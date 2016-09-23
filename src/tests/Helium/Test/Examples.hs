@@ -184,13 +184,22 @@ parseDict =
       toKeyValue = (triml *** (triml1 . safeTail)) . span (/= ':')
       safeTail (_:tl) = tl
       safeTail [] = []
-      triml = dropWhile isSpace
-      triml1 (s:x) | isSpace s = x
-      triml1 x = x
       mergeLines (l:('|':' ':m):ls) = mergeLines ((l ++ '\n' : m) : ls)
       mergeLines (n:ns) = n : mergeLines ns
       mergeLines [] = []
   in map toKeyValue . mergeLines . map (drop (length pfx)) . filter (isPrefixOf pfx) . lines
+
+triml, trimr, triml1 :: String -> String
+triml = dropWhile isSpace
+trimr = dropWhileEnd isSpace
+triml1 (s:x) | isSpace s = x
+triml1 x = x
+
+-- | String equality modulo trailing spaces modulo empty lines
+eqMessages :: [String] -> [String] -> Bool
+eqMessages = (==) `on` (noEmptyLines . map trimr . normalizeLines)
+  where normalizeLines = lines . unlines
+        noEmptyLines = filter (not . null)
 
 mkTestCase :: Environment -> FilePath -> String -> IO TestTree
 mkTestCase baseEnv dirPath hsFile = do
@@ -221,7 +230,14 @@ mkTestCase baseEnv dirPath hsFile = do
                 Right () -> return ()
 
           let errors = [ e | (ErrorMessage e) <- events]
-          map Raw errors @?= map Raw (dictEntries "error")
+              expectedErrors = dictEntries "error"
+          if errors `eqMessages` expectedErrors
+            then return ()
+            else fail (
+                "Errors did not match. Was:\n" ++ unlines errors ++ "\n" ++
+                "Expected:\n" ++ unlines expectedErrors ++
+                "Events:\n" ++ show events
+              )
 
         assertOk = case unitOrErr of
                 Left Abort -> do
