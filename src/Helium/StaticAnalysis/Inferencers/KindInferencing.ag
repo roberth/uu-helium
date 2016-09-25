@@ -150,7 +150,8 @@ SEM Declaration
                                     (\n -> unexpected $ "Declaration.Class " ++ show n)
 
   | Instance
-       lhs  . bindingGroups = internalError "KindInferencing.ag" "n/a" "Instance kind inferencing is not supported"
+       lhs . bindingGroups   = @newGroup : @where.bindingGroups
+       loc . newGroup        = mempty -- TODO: context .===. (name types)
 
   | Hole
        lhs . assumptions = noAssumptions
@@ -286,7 +287,6 @@ SEM Declaration
   | PatternBinding   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected PatternBindings while determining assumptions"
   | Fixity   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected Fixity while determining assumptions"
   | Empty   loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected Empty while determining assumptions"
-  
 SEM Type  
   | Qualified   loc . assumptions = @type.assumptions
   | Forall      loc . (assumptions, kappa) = internalError "KindInferencing.ag" "n/a" "Universal types are not supported"
