@@ -134,7 +134,7 @@ SEM Declaration
 
   | Class
        where . bindingGroups = @newGroup : @lhs.bindingGroups
-       loc . kappa = @lhs.kappaUnique
+       loc . kappa           = @lhs.kappaUnique
        context . kappaUnique = @kappa + 1
        loc . newGroup        = ( M.empty
                                , @whereAset `combine` @ctxAset
