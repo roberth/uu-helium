@@ -16,6 +16,7 @@ import Helium.Utils.Utils (internalError, hole)
 }
 
 {
+
 intErr :: String -> String -> a
 intErr = internalError "UHA_Pretty"
 
@@ -58,6 +59,18 @@ utrechtList start end (d:ds) =
         utrechtList' (doc:docs) = comma <+> doc <$> utrechtList' docs
     in
         start <+> d <$> utrechtList' ds
+
+class UHAPretty a where
+  uhaPretty :: a -> Doc
+
+instance UHAPretty Module where
+  uhaPretty x = text_Syn_Module $ wrap_Module (sem_Module x) Inh_Module
+
+instance UHAPretty Type where
+  uhaPretty x = text_Syn_Type $ wrap_Type (sem_Type x) Inh_Type
+
+instance UHAPretty Declaration where
+  uhaPretty x = text_Syn_Declaration $ wrap_Declaration (sem_Declaration x) Inh_Declaration
 
 }
 
@@ -308,8 +321,9 @@ SEM Declaration                                  {- *** -}
     --  context                  : ContextItems -- is a "simple" context
     --  simpletype               : SimpleType   -- Haskell 98 allows only one variable
     --  where                    : MaybeDeclarations -- cannot have everything
-    | Instance          loc.text = (PPrint.empty 
-                                        <$> text "instance" <+> contextPP @context.text <+> @name.text <+> PPrint.list @types.text
+    | Instance          loc.text = let op = if @context.empty then (<>) else (<+>) in
+                                   (PPrint.empty
+                                        <$> text "instance" `op` contextPP @context.text <+> @name.text <+> foldr1 (<+>) @types.text
                                             <>  maybe
                                                    empty
                                                    (\ds -> PPrint.empty <$> indent 4 (text "where" <$> indent 4 (vcat ds)))
@@ -328,7 +342,7 @@ SEM Declaration                                  {- *** -}
     | FunctionBindings  loc.text = 
          case filter ((/= "") . show) @bindings.text of -- AG: no eq for doc
             [] -> text hole -- empty
-            xs -> foldl1  (<$>) xs
+            xs -> foldl1 (<$>) xs
     --  range                    : Range          {- *** -}
     --  bindings                 : FunctionBindings -- should all be for the same function
     | PatternBinding    loc.text = @pattern.text <+> @righthandside.text (text "=")
@@ -417,6 +431,15 @@ SEM ContextItem
     --  range                    : Range
     --  name                     : Name   -- that is the class
     --  types                    : Types  -- in Haskell 98, this is only one type
+
+ATTR ContextItems
+    [
+    |
+    | empty:Bool
+    ]
+SEM ContextItems
+    | Nil  lhs.empty = True
+    | Cons lhs.empty = False
 
 SEM Constructor
     | Constructor       loc.text = foldl (<+>) (parensIf @constructor.isOperator @constructor.text) @types.text

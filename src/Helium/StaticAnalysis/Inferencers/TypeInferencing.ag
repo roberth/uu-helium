@@ -73,11 +73,24 @@ INCLUDE "TS_PatternMatching.ag"
 INCLUDE "PatternMatchWarnings.ag"
 SEM Module 
   | Module lhs . warnings = @loc.warnings ++ @body.patternMatchWarnings
+
+
+optpragmas
+{
+  {-# OPTIONS_GHC -fno-warn-unused-binds #-}
+}
+
+MODULE {Helium.StaticAnalysis.Inferencers.TypeInferencing}
+{
+  typeInferencing,
+  -- TODO move expression type inferencing function here somewhere and don't export these internals
+  sem_Module, wrap_Module, Inh_Module (..), Syn_Module (..)
+}
   
 -------------------------------------------------------------------------------
 -- Imports
 
-imports {
+{
 
 -- types
 import Top.Types

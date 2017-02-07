@@ -27,7 +27,10 @@ import Control.Monad(when, liftM)
 import Data.Char(ord)
 import Data.List(isPrefixOf)
 
-lexer :: [Option] -> String -> [Char] -> Either LexerError ([Token], [LexerWarning])
+lexer :: [Option] -- ^ command line options
+         -> String -- ^ File name for messages
+         -> [Char] -- ^ Haskell source text
+         -> Either LexerError ([Token], [LexerWarning])
 lexer opts fileName input = runLexerMonad opts fileName (mainLexer input)
 
 strategiesLexer :: [Option] -> String -> [Char] -> Either LexerError ([Token], [LexerWarning])

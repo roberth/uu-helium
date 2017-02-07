@@ -9,5 +9,5 @@ class Invalid a where
 --- | (3,3): Illegal type in type signature
 --- |  type             : a
 --- |    kind           : * -> *
---- |    expected kind  : *     
+--- |    expected kind  : *
 --- | 

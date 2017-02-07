@@ -38,46 +38,67 @@ SEM Module
                  . collectErrors   = []
 
 SEM Body
-  | Body   loc . inferredTypes      = findInferredTypes @lhs.typeschemeMap @implicitsFM
+  | Body   loc . inferredTypes      = findInferredTypes "Body" @lhs.typeschemeMap @implicitsFM
            lhs . collectWarnings    = missingTypeSignature True @declarations.simplePatNames @inferredTypes 
                                       ++ @declarations.collectWarnings
                . collectErrors      = restrictedNameErrors @inferredTypes @declarations.restrictedNames
                                       ++ @declarations.collectErrors
 
 SEM MaybeDeclarations
-  | Just   loc . inferredTypes      = findInferredTypes @lhs.typeschemeMap @implicitsFM
+  | Just   loc . inferredTypes      = findInferredTypes ("MaybeDeclarations " ++ show (map rangeOf (@declarations.self))) @lhs.typeschemeMap @implicitsFM
            lhs . collectWarnings    = missingTypeSignature False @declarations.simplePatNames @inferredTypes 
                                       ++ @declarations.collectWarnings 
                . collectErrors      = restrictedNameErrors @inferredTypes @declarations.restrictedNames
                                       ++ @declarations.collectErrors
                                       
 SEM Expression
-  | Let    loc . inferredTypes      = findInferredTypes @lhs.typeschemeMap @implicitsFM
+  | Let    loc . inferredTypes      = findInferredTypes "Expression" @lhs.typeschemeMap @implicitsFM
            lhs . collectWarnings    = missingTypeSignature False @declarations.simplePatNames  @inferredTypes
                                       ++ @expression.collectWarnings
                . collectErrors      = restrictedNameErrors @inferredTypes @declarations.restrictedNames
                                       ++ @declarations.collectErrors
                                       
 SEM Statement                  
-  | Let    loc . inferredTypes      = findInferredTypes @lhs.typeschemeMap @implicitsFM
+  | Let    loc . inferredTypes      = findInferredTypes "Let" @lhs.typeschemeMap @implicitsFM
            lhs . collectWarnings    = missingTypeSignature False @declarations.simplePatNames @inferredTypes 
                                       ++ @declarations.collectWarnings
                . collectErrors      = restrictedNameErrors @inferredTypes @declarations.restrictedNames
                                       ++ @declarations.collectErrors
                                       
 SEM Qualifier                    
-  | Let    loc . inferredTypes      = findInferredTypes @lhs.typeschemeMap @implicitsFM
+  | Let    loc . inferredTypes      = findInferredTypes "Qualifier" @lhs.typeschemeMap @implicitsFM
            lhs . collectWarnings    = missingTypeSignature False @declarations.simplePatNames @inferredTypes 
                                       ++ @declarations.collectWarnings
                . collectErrors      = restrictedNameErrors @inferredTypes @declarations.restrictedNames
                                       ++ @declarations.collectErrors
                                       
 {
-findInferredTypes :: M.Map Int (Scheme Predicates) -> M.Map Name (Sigma Predicates) -> TypeEnvironment
-findInferredTypes typeschemeMap =
-   let err = internalError "TypeInferenceCollect.ag" "findInferredTypes" "could not find type scheme variable"
+rangeOf :: Declaration -> Range
+rangeOf (Declaration_Hole r _) = r
+rangeOf (Declaration_Type r _ _) = r
+rangeOf (Declaration_Data r _ _ _ _) = r
+rangeOf (Declaration_Newtype r _ _ _ _) = r
+rangeOf (Declaration_Class r _ _ _) = r
+rangeOf (Declaration_Instance r _ _ _ _) = r
+rangeOf (Declaration_Default r _) = r
+rangeOf (Declaration_FunctionBindings r _) = r
+rangeOf (Declaration_PatternBinding r _ _) = r
+rangeOf (Declaration_TypeSignature r _ _) = r
+rangeOf (Declaration_Fixity r _ _ _) = r
+rangeOf (Declaration_Empty r) = r
+        
+findInferredTypes :: String -> M.Map Int (Scheme Predicates) -> M.Map Name (Sigma Predicates) -> TypeEnvironment
+findInferredTypes ref typeschemeMap =
+   let err i m = internalError "TypeInferenceCollect.ag" "findInferredTypes" (
+         "could not find type scheme variable ["
+         ++ show i
+         ++ "] {"
+         ++ show m
+         ++ "} ("
+         ++ ref
+         ++ ")")
        f :: Sigma Predicates -> TpScheme
-       f (SigmaVar i)     = M.findWithDefault err i typeschemeMap
+       f (SigmaVar i)     = M.findWithDefault (err i typeschemeMap) i typeschemeMap
        f (SigmaScheme ts) = ts
    in M.map f
    

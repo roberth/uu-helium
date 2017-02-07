@@ -10,6 +10,7 @@
 module Helium.ModuleSystem.ImportEnvironment where
 
 import qualified Data.Map as M
+import Data.Map(Map)
 import Helium.Utils.Utils (internalError)
 import Helium.Syntax.UHA_Syntax -- (Name)
 import Helium.Syntax.UHA_Utils
@@ -21,12 +22,14 @@ import Helium.StaticAnalysis.Directives.TS_CoreSyntax
 import Data.List 
 import Data.Maybe (catMaybes)
 import Data.Function (on)
+import Helium.Utils.Utils(mappendOn)
 
 type TypeEnvironment             = M.Map Name TpScheme
 type ValueConstructorEnvironment = M.Map Name TpScheme
 type TypeConstructorEnvironment  = M.Map Name Int
 type TypeSynonymEnvironment      = M.Map Name (Int, Tps -> Tp)
 type ClassMemberEnvironment      = M.Map Name [(Name, Bool)]
+newtype ClassKindEnvironment     = ClassKindEnvironment { fromClassKindEnvironment :: M.Map Name TpScheme }
 
 type ImportEnvironments = [ImportEnvironment]
 data ImportEnvironment  = 
@@ -39,7 +42,8 @@ data ImportEnvironment  =
                        , operatorTable     :: OperatorTable
                          -- type classes
                        , classEnvironment  :: ClassEnvironment
-                       , classMemberEnvironment :: ClassMemberEnvironment                       
+                       , classMemberEnvironment :: ClassMemberEnvironment
+                       , classKindEnvironment :: ClassKindEnvironment
                          -- other
                        , typingStrategies  :: Core_TypingStrategies 
                        }
@@ -53,9 +57,34 @@ emptyEnvironment = ImportEnvironment
    , operatorTable     = M.empty
    , classEnvironment  = emptyClassEnvironment
    , classMemberEnvironment = M.empty
+   , classKindEnvironment = mempty
    , typingStrategies  = [] 
    }
-                                              
+
+combineImportEnvironments :: ImportEnvironment -> ImportEnvironment -> ImportEnvironment
+combineImportEnvironments (ImportEnvironment tcs1 tss1 te1 vcs1 ot1 ce1 cm1 ck1 xs1) (ImportEnvironment tcs2 tss2 te2 vcs2 ot2 ce2 cm2 ck2 xs2) = 
+   ImportEnvironment 
+      (tcs1 `exclusiveUnion` tcs2) 
+      (tss1 `exclusiveUnion` tss2)
+      (te1  `exclusiveUnion` te2 )
+      (vcs1 `exclusiveUnion` vcs2)
+      (ot1  `exclusiveUnion` ot2)
+      (M.unionWith combineClassDecls ce1 ce2)
+      (cm1 `exclusiveUnion` cm2)
+      (ck1 `mappend` ck2)
+      (xs1 ++ xs2)
+
+combineImportEnvironmentList :: ImportEnvironments -> ImportEnvironment
+combineImportEnvironmentList = foldr combineImportEnvironments emptyEnvironment
+
+instance Monoid ImportEnvironment where
+  mempty = emptyEnvironment
+  mappend = combineImportEnvironments
+
+instance Monoid ClassKindEnvironment where
+  mempty = ClassKindEnvironment M.empty
+  mappend = curry (ClassKindEnvironment <$> mappendOn fromClassKindEnvironment)
+            
 addTypeConstructor :: Name -> Int -> ImportEnvironment -> ImportEnvironment                      
 addTypeConstructor name int importenv = 
    importenv {typeConstructors = M.insert name int (typeConstructors importenv)} 
@@ -70,6 +99,10 @@ addTypeSynonym name (arity, function) importenv =
 addType :: Name -> TpScheme -> ImportEnvironment -> ImportEnvironment                      
 addType name tpscheme importenv = 
    importenv {typeEnvironment = M.insert name tpscheme (typeEnvironment importenv)}
+
+addClassKinds :: ClassKindEnvironment -> ImportEnvironment -> ImportEnvironment                      
+addClassKinds more importenv =
+   importenv {classKindEnvironment = classKindEnvironment importenv `mappend` more}
 
 addToTypeEnvironment :: TypeEnvironment -> ImportEnvironment -> ImportEnvironment
 addToTypeEnvironment new importenv =
@@ -129,22 +162,7 @@ getSiblings importenv =
                     , M.lookup n (typeEnvironment   importenv)
                     ]
    in map (concatMap f) (getSiblingGroups importenv) 
-         
-combineImportEnvironments :: ImportEnvironment -> ImportEnvironment -> ImportEnvironment
-combineImportEnvironments (ImportEnvironment tcs1 tss1 te1 vcs1 ot1 ce1 cm1 xs1) (ImportEnvironment tcs2 tss2 te2 vcs2 ot2 ce2 cm2 xs2) = 
-   ImportEnvironment 
-      (tcs1 `exclusiveUnion` tcs2) 
-      (tss1 `exclusiveUnion` tss2)
-      (te1  `exclusiveUnion` te2 )
-      (vcs1 `exclusiveUnion` vcs2)
-      (ot1  `exclusiveUnion` ot2)
-      (M.unionWith combineClassDecls ce1 ce2)
-      (cm1 `exclusiveUnion` cm2)
-      (xs1 ++ xs2)
-
-combineImportEnvironmentList :: ImportEnvironments -> ImportEnvironment
-combineImportEnvironmentList = foldr combineImportEnvironments emptyEnvironment
-      
+               
 exclusiveUnion :: Ord key => M.Map key a -> M.Map key a -> M.Map key a
 exclusiveUnion m1 m2 =
    let keys = M.keys (M.intersection m1 m2)
@@ -179,8 +197,12 @@ createClassEnvironment importenv =
          isDict n _ = dictPrefix `isPrefixOf` show n
          dictPrefix = "$dict"
          -- classes = ["Eq","Num","Ord","Enum","Show"]
-         -- TODO: put $ between class name and type in dictionary name
-         --  i.e. $dictEq$Int instead of $dictEqInt
+         splitDictName x | '$' `elem` x = let (cls, more) = span (/= '$') x
+                                              typ = case more of
+                                                      '$':t -> t -- Assuming no MultiParam
+                                                      t -> t
+                                          in (cls, typ)
+         -- TODO: Following lines are supposedly redundant.
          splitDictName ('E':'q':t) = ("Eq", t)
          splitDictName ('N':'u':'m':t) = ("Num", t)
          splitDictName ('O':'r':'d':t) = ("Ord", t)
@@ -190,7 +212,7 @@ createClassEnvironment importenv =
          arity s | s == "()" = 0
                  | isTupleConstructor s = length s - 1
                  | otherwise = M.findWithDefault
-                                  (internalError "ImportEnvironment" "splitDictName" ("unknown type constructor: " ++ show s))                            
+                                  (internalError "ImportEnvironment" "splitDictName" ("unknown type constructor: " ++ show s))
                                   (nameFromString s)
                                   (typeConstructors importenv) 
          dictTuples = [ (c, makeInstance c (arity t) t) 
@@ -221,7 +243,7 @@ makeInstance className nrOfArgs tp =
     
 -- added for holmes
 holmesShowImpEnv :: Module -> ImportEnvironment -> String
-holmesShowImpEnv module_ (ImportEnvironment _ _ te _ _ _ _ _) =
+holmesShowImpEnv module_ (ImportEnvironment _ _ te _ _ _ _ _ _) =
       concat functions
     where
        localName = getModuleName module_
@@ -231,7 +253,7 @@ holmesShowImpEnv module_ (ImportEnvironment _ _ te _ _ _ _ _) =
           in map (++ ";") list
 
 instance Show ImportEnvironment where
-   show (ImportEnvironment tcs tss te vcs ot ce cm _) = 
+   show (ImportEnvironment tcs tss te vcs ot ce cm ck _) = 
       unlines (concat [ fixities
                       , datatypes
                       , typesynonyms
@@ -239,6 +261,7 @@ instance Show ImportEnvironment where
                       , functions
                       , classes
                       , classmembers
+                      , classkinds
                       ])
     where
        fixities =    
@@ -282,9 +305,13 @@ instance Show ImportEnvironment where
        classmembers = 
           let f = undefined
           in showWithTitle "Class members" (showEm f (M.assocs cm))
+
+       classkinds =
+          showWithTitle "Class kinds" (showEm show $ M.assocs $ fromClassKindEnvironment $ ck)
+          
           
        showWithTitle title xs
-          | null xs   = []
+          | null xs   = ["No " ++ title]
           | otherwise = (title++":") : map ("   "++) xs
    
        showEm showf aMap = map showf (part2 ++ part1)

@@ -8,15 +8,15 @@
 
 module Helium.MonadCompile
   ( MonadCompile(..)
+  , doPhaseWithExit
   , isEnabled, whenEnabled, whenEnabled_, whenDisabled, whenDisabled_
   , when'
   ) where
 
-
 import Control.Monad.Reader
 import Helium.Main.CompileUtils
-import Helium.StaticAnalysis.Messages.Messages(HasMessage)
-import qualified Lvm.Core.Expr as Core
+import Helium.StaticAnalysis.Messages.Messages(HasMessage, sortMessages)
+import Helium.StaticAnalysis.Messages.HeliumMessages (showMessage)
 import Lvm.Common.Id         (Id, NameSupply)
 import Lvm.Common.Byte       (Byte,Bytes)
 
@@ -40,7 +40,6 @@ class Monad m => MonadCompile m where
   readSourceFile :: String -> m String
   readTypingStrategiesFile :: String -> m (Maybe String)
 
-  doPhaseWithExit :: HasMessage err => Int -> ([err] -> String) -> CompileOptions -> m (Either [err] a) -> m a
 
   enterNewPhase :: String -> m ()
   enterNewPhase = enterNewPhase'
@@ -86,3 +85,30 @@ whenDisabled_ o m = void (whenDisabled o m)
 enterNewPhase' :: MonadCompile m => String -> m ()
 enterNewPhase' phase  =
    whenEnabled Verbose (logMessage (phase ++ "...")) >> return ()
+
+
+doPhaseWithExit :: (MonadCompile m, HasMessage err)
+  => Int
+  -> ([err] -> String)
+  -> CompileOptions
+  -> m (Either [err] a) -> m a
+doPhaseWithExit nrOfMsgs code (_, fullName, doneModules) phase =
+   (do result <- phase
+       case result of
+         Left errs ->
+            do submitLog (code errs) fullName doneModules
+               showErrorsAndExit' errs nrOfMsgs
+         Right a ->
+            return a)
+    where
+      showErrorsAndExit' :: (MonadCompile m, HasMessage a) => [a] -> Int -> m b
+      showErrorsAndExit' errors maximumNumber = do
+          let someErrors = take maximumNumber (sortMessages errors)
+          mapM_ (printErrorMessage . showMessage) someErrors
+          when (number > maximumNumber) $
+            logMessage "(...)\n"
+          logMessage ("Compilation failed with " ++ show number ++
+                    " error" ++ (if number == 1 then "" else "s"))
+          abort
+        where
+          number = length errors

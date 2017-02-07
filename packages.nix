@@ -45,6 +45,7 @@ rec {
                      ]
                    ))));
       Top = self.callPackage ./top.nix {};
+      #Top = setSource (../uu-top) (self.callPackage ./top.nix {});
       # lvmlib = setSource (../uu-lvm) (self.callPackage ../uu-lvm/src/lib/lvmlib.nix {});
       lvmlib = self.callPackage ./lvmlib.nix {};
   };

@@ -1,0 +1,6 @@
+command="(cd src && make) && cabal build && (cd test; ./testAll)"
+
+if which nix-shell >/dev/null
+then nix-shell --run "$command"
+else sh -c "$command"
+fi

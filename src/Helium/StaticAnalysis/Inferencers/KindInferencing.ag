@@ -32,13 +32,8 @@ optpragmas
 }
 
 MODULE {Helium.StaticAnalysis.Inferencers.KindInferencing}
-{
-  wrap_Module
-  , sem_Module
-  , Inh_Module(..)
-  , debugString_Syn_Module
-  , kindEnvironment_Syn_Module
-  , kindErrors_Syn_Module
+{ inferKinds
+, KindEnvironment
 }
 
 -------------------------------------------------------------------------------
@@ -53,6 +48,7 @@ import Helium.Syntax.UHA_Syntax
 import Helium.Syntax.UHA_Utils
 import Helium.Main.Args
 import qualified Data.Map as M
+import Data.Map(Map)
 
 -- import StaticAnalysis.Miscellaneous.TypeConstraints
 import Helium.Utils.Utils (internalError)
@@ -60,7 +56,21 @@ import Helium.ModuleSystem.ImportEnvironment hiding (setTypeSynonyms)
 import Helium.StaticAnalysis.Messages.KindErrors
 import Data.Char (isLower)
 import Helium.StaticAnalysis.Inferencers.BindingGroupAnalysis (Assumptions, PatternAssumptions, noAssumptions, combine, single, topSort)
+import Debug.Trace
 
+}
+
+{
+inferKinds :: ImportEnvironment
+           -> Module
+           -> [Option]
+           -> (String, KindEnvironment, KindErrors)
+inferKinds importEnvironment module_ options =
+      let res = wrap_Module (sem_Module module_) Inh_Module {
+                   importEnvironment_Inh_Module = importEnvironment,
+                   options_Inh_Module = options }
+          kindEnv = kindEnvironment_Syn_Module res
+      in ((debugString_Syn_Module res), kindEnv, kindErrors_Syn_Module res)
 }
 
 
@@ -69,15 +79,14 @@ import Helium.StaticAnalysis.Inferencers.BindingGroupAnalysis (Assumptions, Patt
 
 SEM Module
   | Module   lhs  . kindErrors      = @substitution |-> (map fst @kindErrors)
-                  . debugString     = show @logEntries
+                  . debugString     = "Variables: \n" ++ unlines (map (\(i, d) -> show i ++ ": " ++ d) @body.vars) ++ "\n\n" ++ show @logEntries
              body . kappaUnique     = 0
-             loc  . (SolveResult kappaUniqueAtTheEnd substitution _ _ kindErrors, logEntries) = 
+             loc  . (SolveResult kappaUniqueAtTheEnd substitution kindSchemes _ kindErrors, logEntries) = 
                        solve (solveOptions { uniqueCounter = @body.kappaUnique }) @body.constraints greedyConstraintSolver
                   . kindEnvironment = let f kind = generalizeAll ([] .=>. defaultToStar (@substitution |-> kind))
-                                      in M.map f @body.environment                     
-                                        
-
-ATTR Body [ importEnvironment:ImportEnvironment | | constraints:KindConstraints environment:PatternAssumptions ]
+                                      in M.map f @body.environment
+  
+ATTR Body [ | | constraints:KindConstraints environment:PatternAssumptions ]
 
 {
   
@@ -92,7 +101,8 @@ SEM Body
        lhs . constraints             = @newConstraints ++ @cs
        loc . (environment, aset, cs) = performBindingGroup @declarations.bindingGroups
            . newConstraints          = fst $ (@kindEnvironment .:::. @aset) (\n -> unexpected $ "Body.Body " ++ show n)
-           . kindEnvironment         = getKindsFromImportEnvironment @lhs.importEnvironment
+           . kindEnvironment         = getKindsFromImportEnvironment @lhs.importEnvironment `M.union`
+                                       M.singleton (nameFromString "->") (makeScheme [] [] (star .->. star .->. star))
 
 ATTR Body Declarations Declaration Expressions Expression Alternatives Alternative
      Statement Statements Qualifier Qualifiers RightHandSide FunctionBinding
@@ -107,6 +117,13 @@ ATTR Declaration Declarations Expressions Expression Alternatives Alternative
      FunctionBindings MaybeExpression RecordExpressionBinding RecordExpressionBindings
      MaybeDeclarations GuardedExpression GuardedExpressions
      [ | bindingGroups:BindingGroups | ]
+     
+ATTR Declaration Declarations Expressions Expression Alternatives Alternative 
+     Statement Statements Qualifier Qualifiers RightHandSide FunctionBinding
+     FunctionBindings MaybeExpression RecordExpressionBinding RecordExpressionBindings
+     MaybeDeclarations GuardedExpression GuardedExpressions Body Declaration Declarations
+     ContextItems ContextItem SimpleType
+     [ | | vars USE {`mappend`} {mempty} : {[(Int, String)]}  ]
 
 SEM Declaration
   | Type
@@ -134,14 +151,23 @@ SEM Declaration
 
   | Class
        where . bindingGroups = @newGroup : @lhs.bindingGroups
-       loc . kappa           = @lhs.kappaUnique
-       context . kappaUnique = @kappa + 1
-       loc . newGroup        = ( M.empty
+       --loc . kappa           = @lhs.kappaUnique
+       --context . kappaUnique = @kappa + 1
+       lhs . kappaUnique     = @where.kappaUnique + 1
+       loc . kappa           = @where.kappaUnique
+
+       lhs . vars            = [(@kappa, "class " ++ getNameName @simpletype.name)]
+                               `mappend` @context.vars `mappend` @simpletype.vars `mappend` @where.vars
+
+       loc . newGroup        = ( M.singleton @simpletype.name (TVar @kappa)
                                , @whereAset `combine` @ctxAset
-                               , @whereCset ++ @ctxCset ++ @where.constraints ++ @context.constraints )
+                               , @whereCset ++ @ctxCset ++ @where.constraints ++ @context.constraints ++ @constraints)
        loc . tvEnv           = @simpletype.environment
        loc . kappaOfRHS      = TVar @kappa
-       loc . constraints     = []
+       loc . constraints     = [ (TVar @kappa .==.
+                                 foldr (.->.) kConstraint @simpletype.kappasVars) (unexpected $ "Declaration.Class")
+                               ]
+
        loc . (whereCset,
                   whereAset) = (@tvEnv .===. @where.assumptions)
                                     (\n -> unexpected $ "Declaration.Class " ++ show n)
@@ -150,8 +176,47 @@ SEM Declaration
                                     (\n -> unexpected $ "Declaration.Class " ++ show n)
 
   | Instance
+       lhs . kappaUnique     =        @types.kappaUnique + length @tvEnv + 1
+       loc . kappa           = TVar $ @types.kappaUnique + length @tvEnv
+       lhs . vars            = [(@types.kappaUnique + length @tvEnv, "Instance expectation " ++ @loc.name ++ " " ++ show @types.assumeSingle)]
+                               `mappend` @where.vars
+       loc . tvEnv           = zip (getTypeVariables @types.assumptions) (map TVar [@types.kappaUnique ..])
        lhs . bindingGroups   = @newGroup : @where.bindingGroups
-       loc . newGroup        = mempty -- TODO: context .===. (name types)
+       loc . newGroup        = (mempty
+                               , @aset `combine` @aset' `combine` @aset''
+                               , @cset ++ @cset' ++ @cset'' ++ @importedConstraints)
+                               -- TODO  @types.constraints, @context.constraints ?
+           . (cset, aset)    = (M.fromList @tvEnv .===. @types.assumptions) (\n -> unexpected $ "Instance.Instance " ++ show n)
+           . (cset', aset')  = (M.fromList @tvEnv .===. @context.assumptions) (\n -> unexpected $ "Instance.Instance " ++ show n)
+           . name            = getNameName @name.self
+           . hypotheticClass = foldr (.->.) kConstraint @types.kappas
+           . (cset'', aset'') = {-trace (show (foldr (.->.) kConstraint @types.kappas) ++ " == " ++ show @kappa )
+                                trace (show @name.self ++ " --- " ++ show @kappa)
+                                trace (show @types.assumptions)-}
+                                ( [(@hypotheticClass .==. @kappa) (kindInstance @range.self @loc.name @hypotheticClass @kappa)]
+                                , @name.self `single` @kappa)
+       loc . importedConstraints
+                             = let kinds = getKindsFromImportEnvironment @lhs.importEnvironment
+                               in case M.lookup @name.self kinds of
+                                 Nothing -> []
+                                 Just k -> trace ("\nIMPORT " ++ show k ++ "\n")
+                                           [ (@kappa .::. k)
+                                               (kindContext @range.self (getNameName @name.self) @kappa k)
+                                           ]
+
+
+{-       loc . myConstraints     = [ (TVar @kappa .==.
+                                 foldr (.->.) kConstraint @simpletype.kappasVars) (unexpected $ "Declaration.Class") ]-}
+
+-- TODO: (name `apply` @types) .==. kConstraint
+--                \                     \
+--                 '--> kind mismatch    '--> too few/many types
+--
+-- Currently implemented is only the kind mismatch
+--  - types == [*]     -> ok
+--  - types == [other] -> message
+--  - otherwise        -> exception
+                   -- ([((@types.assumeSingle <==> star) (\_ -> unexpected $ "Instance.Instance WIP"))], mempty)
 
   | Hole
        lhs . assumptions = noAssumptions
@@ -166,7 +231,13 @@ SEM Expression
             . (cset, aset)  = (M.fromList @tvEnv .===. @type.assumptions) (\n -> unexpected $ "Expression.Typed " ++ show n) 
             . newGroup      = (M.empty, @aset, @cset ++ @type.constraints ++ [@newConstraint])
 
-ATTR SimpleType [ kappaOfRHS:Kind | constraints:KindConstraints | environment:PatternAssumptions declared:PatternAssumptions ]
+ATTR SimpleType [ kappaOfRHS:Kind
+                | constraints:KindConstraints
+                | environment:PatternAssumptions
+                  declared:PatternAssumptions
+                  name:Name
+                  kappasVars:{[Kind]}
+                ]
 
 SEM SimpleType
   | SimpleType
@@ -174,6 +245,8 @@ SEM SimpleType
            . declared      = M.singleton @name.self @kappaCon
            . constraints   = @newConstraint : @lhs.constraints
            . kappaUnique   = 1 + length @typevariables.self + @lhs.kappaUnique
+       lhs . name          = @name.self
+       lhs . vars          = [(@lhs.kappaUnique, "SimpleType.kappaCon " ++ show @name.self)]
        loc . kappaCon      = TVar @lhs.kappaUnique
            . kappasVars    = take (length @typevariables.self) [ TVar i | i <- [ @lhs.kappaUnique+1 .. ]]
            . newConstraint = (@kappaCon .==. foldr (.->.) @lhs.kappaOfRHS @kappasVars) (unexpected "SimpleType.SimpleType")
@@ -182,6 +255,10 @@ ATTR AnnotatedTypes Types [ | constraints:KindConstraints | assumptions:Assumpti
 ATTR AnnotatedType  Type  [ | constraints:KindConstraints | assumptions:Assumptions kappa:Kind ]
 ATTR MaybeDeclarations Declarations Declaration ContextItem ContextItems
                           [ | constraints:KindConstraints | assumptions:Assumptions ]
+
+ATTR Types [ | | assumeSingle : Kind ]
+SEM Types | Cons lhs.assumeSingle = @hd.kappa
+          | Nil lhs.assumeSingle  = internalError "KindInferencing.ag" "n/a" "Use of multiple types is not yet supported here."
 
 SEM Type
   | Application
@@ -193,9 +270,9 @@ SEM Type
            
            
   | Variable 
-       lhs . assumptions = single @name.self @kappa           
+       lhs . assumptions = single @name.self @kappa
            . kappaUnique = @lhs.kappaUnique + 1
-       loc . kappa       = TVar @lhs.kappaUnique 
+       loc . kappa       = TVar @lhs.kappaUnique
                  
   | Constructor   
        lhs . assumptions = single @name.self @kappa
@@ -241,6 +318,8 @@ SEM MaybeDeclarations
 SEM Declarations
   | Cons   lhs . assumptions = @hd.assumptions `combine` @tl.assumptions
   | Nil    lhs . assumptions = noAssumptions
+  | Cons   lhs . constraints = @hd.constraints ++ @tl.constraints
+  | Nil    lhs . constraints = mempty
 
 SEM ContextItems
   | Nil    lhs . assumptions = noAssumptions
@@ -256,31 +335,81 @@ SEM ContextItems
 
         |       | |
         v       | |
-    classType   | |
+      kappa     | |
                 v v
-            kappasVars
+            @types.kappas
  -}
 
 SEM ContextItem 
   | ContextItem
-       lhs . kappaUnique   = 2 + length @types.self + @lhs.kappaUnique
-       loc . kappa         = TVar (@lhs.kappaUnique + 1)
-           . kappasVars    = @types.kappas
+  -- TODO: wtf these four lines
+--       lhs . kappaUnique   = 2 + length @types.self + @lhs.kappaUnique
+--       loc . kappa         = TVar (@lhs.kappaUnique + 1)
+--       loc . kappa         = TVar $ @types.kappaUnique + 40 * length @types.kappas
+--       lhs . kappaUnique   = @types.kappaUnique + 1 + 40 * length @types.kappas
+       loc . kappa = TVar (@types.kappaUnique)
+       lhs . kappaUnique = @types.kappaUnique + 1
 
-       loc . classType     = star .->. kConstraint
-       loc . expectedType  = foldr (.->.) kConstraint @kappasVars
-                             -- All classes are currently * -> Constraint
-                             -- FIXME: look up the class
+       -- Determine kind for @kappa
                              
-       loc . newConstraint = (@classType .==. @expectedType)
-                                  (kindContext @range.self (getNameName @name.self) @classType @expectedType )
-       lhs . constraints   = @newConstraint : @types.constraints
-       lhs . assumptions   = @types.assumptions
+       loc . myAssumptions = @name.self `single` @kappa
+       loc . importedConstraints
+                           = let kinds = getKindsFromImportEnvironment @lhs.importEnvironment
+                             in case M.lookup @name.self kinds of
+                               Nothing -> []
+                               Just k ->
+                                 [(@kappa .::. k)
+                                   (kindContext @range.self (getNameName @name.self) @kappa k)]
+
+
+       -- Application of the types
+       loc . usedAs        = foldr (.->.) kConstraint @types.kappas
+       loc . use           = [(@kappa .==. @usedAs)
+                               (kindContext'
+                                  @range.self
+                                  (getNameName @name.self)
+                                  @usedAs
+                                  @kappa)]
+
+       -- Aggregating
+
+       lhs . constraints   = if getNameName @name.self `elem` ["Num", "Eq", "Ord", "Show"]
+                             then [] -- FIXME: these will have to be treated as normal classes
+                             else @use ++ @importedConstraints ++ @types.constraints
+                             
+       lhs . assumptions   = @myAssumptions `combine` @types.assumptions
+
+  {-
+       loc . kappa         = TVar @lhs.kappaUnique
+       range . kappaUnique = @lhs.kappaUnique + 1
+       lhs . kappaUnique   = @lhs.kappaUnique + 1000 -- 2 + length @types.self + @types.kappaUnique
+       lhs . constraints   = @importedConstraints ++ @types.constraints -- ++ @use
+       lhs . assumptions   = {-@myAssumptions `combine`-} @types.assumptions
+                                -- id of the constraint 'type' constructor
+
+       loc . kappasVars    = @types.kappas
+       loc . usedAs        = foldr (.->.) kConstraint @kappasVars
+       loc . use           = [(@kappa .==. @usedAs)
+                               (kindContext' @range.self (getNameName @name.self) @usedAs @kappa)]
+
+       loc . importedConstraints
+                           = let kinds = getKindsFromImportEnvironment @lhs.importEnvironment
+                             in trace ("Imported constraints " ++ show @name.self ++ " " ++ show (M.lookup @name.self kinds)) $
+                               case M.lookup @name.self kinds of
+                               Nothing -> []
+                               Just k ->
+                                 [(@kappa .::. k)
+                                   (kindContext @range.self (getNameName @name.self) @usedAs k)]
+
+       loc . myAssumptions = @name.self `single` @kappa
+-}
+
+ATTR Alternative Alternatives AnnotatedType AnnotatedTypes Body Constructor Constructors ContextItem ContextItems Declaration Declarations Expression Expressions FieldDeclaration FieldDeclarations FunctionBinding FunctionBindings GuardedExpression GuardedExpressions MaybeExpression MaybeDeclarations Qualifier Qualifiers RecordExpressionBinding RecordExpressionBindings RightHandSide Statement Statements Type Types
+     [ importEnvironment : ImportEnvironment | | ]
 
 SEM FieldDeclaration 
   | FieldDeclaration    loc . constraints = internalError "KindInferencing.ag" "n/a" "Field decls are not supported"
 SEM Declaration 
-  | Instance loc . constraints = internalError "KindInferencing.ag" "n/a" "instance decls are not supported"
   | Default  loc . constraints = internalError "KindInferencing.ag" "n/a" "default decls is not supported"
   | Newtype  loc . (constraints,kappaOfRHS) = internalError "KindInferencing.ag" "n/a" "newtype decls are not supported"
   | FunctionBindings loc . assumptions = internalError "KindInferencing.ag" "n/a" "unexpected FunctionBindings while determining assumptions"
@@ -296,7 +425,9 @@ SEM Constructor
 
 {
 
-type KindEnvironment = M.Map Name TpScheme
+  -- TODO: use this
+type KindEnvironment = Map Name TpScheme
+
 type KindConstraint  = TypeConstraint  KindError
 type KindConstraints = TypeConstraints KindError
 
@@ -317,7 +448,7 @@ emptyBindingGroup :: BindingGroup
 emptyBindingGroup = (noAssumptions, noAssumptions, [])
 
 performBindingGroup :: BindingGroups -> (PatternAssumptions, Assumptions, KindConstraints)
-performBindingGroup = glueGroups . bindingGroupAnalysis    
+performBindingGroup = glueGroups . bindingGroupAnalysis
    where   
       bindingGroupAnalysis :: BindingGroups -> BindingGroups
       bindingGroupAnalysis cs
@@ -340,8 +471,10 @@ performBindingGroup = glueGroups . bindingGroupAnalysis
                   )             
 
 getKindsFromImportEnvironment :: ImportEnvironment -> KindEnvironment
-getKindsFromImportEnvironment = M.map f . typeConstructors
-   where f i = generalizeAll ([] .=>. foldr (.->.) star (replicate i star))
+getKindsFromImportEnvironment ie = typeKinds `M.union` classKinds
+   where typeKinds = M.map f $ typeConstructors $ ie
+         f i = generalizeAll ([] .=>. foldr (.->.) star (replicate i star)) -- ASSUMPTION: all data types have type parameters of kind *
+         (ClassKindEnvironment classKinds) = classKindEnvironment ie
 
 getTypeVariables :: Assumptions -> Names
 getTypeVariables = filter p . M.keys

@@ -9,6 +9,10 @@
 --
 -----------------------------------------------------------------------------
 
+imports {
+import Debug.Trace
+}
+
 ----------------------------------------------------------------------------------------
 -- Type Inferencing : Module
 
@@ -113,6 +117,11 @@ SEM Declaration
                                                ]
                                         ]
                                       )
+
+  | Instance
+      lhs           . bindingGroups = @lhs.bindingGroups -- FIXME
+  | Class
+      lhs           . bindingGroups = @lhs.bindingGroups -- FIXME: assuming no default impls
 
 SEM MaybeDeclarations
   | Just

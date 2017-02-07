@@ -48,6 +48,25 @@ import Helium.Syntax.UHA_Range
 import qualified Helium.Parser.CollectFunctionBindings as CollectFunctionBindings
 import Helium.Utils.Utils
 
+-- Parts of the parser can be tested using doctest.
+--
+-- Let's define some functions to make that work.
+-- $setup
+-- >>> :set -XDeriveGeneric -XStandaloneDeriving -XFlexibleContexts -XUndecidableInstances
+-- >>> :l Helium.Parser.Parser Helium.Syntax.UHA_Pretty
+-- >>> import Helium.Syntax.UHA_Pretty(uhaPretty)
+-- >>> deriving instance Show LexerErrorInfo
+-- >>> deriving instance Show LexerError
+-- >>> deriving instance Show LexerWarningInfo
+-- >>> deriving instance Show LexerWarning
+-- >>> let lex = either (error . show) id . lexer [] ""
+-- >>> let parse parser source = runHParser parser "<example>" (layout $ fst $ lex source) True
+-- >>> let parseCorrect parser source = case parse parser source of { Right x -> x; Left err -> error (show err) }
+-- >>> let fixWS = unlines . filter (not . null) . lines
+-- >>> let parseCorrect' parser source = putStr $ fixWS $ show $ uhaPretty $ parseCorrect parser source $ Range_Range Position_Unknown Position_Unknown
+-- >>> let singletonLayout x = withLayout x >>= (\y -> case y of { [y] -> return y; _ -> error "Expected 1-element layout" })
+
+
 parseOnlyImports :: String -> IO [String]
 parseOnlyImports fullName = do
     contents <- readSourceFile fullName    
@@ -201,19 +220,10 @@ cdecls =
                                return d)
         return $ \r -> Declaration_Class r ct st ds
     <|>
--- Declaration_Instance (Range) (ContextItems) (Name) (Types) (MaybeDeclarations)
-    do
-        lexINSTANCE
-        ct <- option [] (try $ do {c <- scontext; lexDARROW ; return c} )
-        n  <- tycls
-        ts <- iType
-        ds <- option MaybeDeclarations_Nothing (try $ do lexWHERE
-                                                         d <- idecls
-                                                         return (MaybeDeclarations_Just d))
-        return $ \r -> Declaration_Instance r ct n [ts] ds
+    instanceDeclaration
     <|>
     infixdecl
-    ) 
+    )
     <|> addRange (
       do
          lexHOLE
@@ -225,6 +235,36 @@ cdecls =
     <|>
     decl
     <?> Texts.parserDeclaration
+
+-- |
+-- >>> (singletonLayout instanceDeclaration) `parseCorrect'` "instance Show Int where\n  show 0 = \"hello\""
+-- instance Show Int
+--     where
+--         show 0 =
+--             ["hello"]
+--
+-- (Note that the pretty printer is broken)
+--
+-- >>> (singletonLayout instanceDeclaration) `parseCorrect'` "instance Eq b => SomeClass [a]"
+-- instance Eq b =>  SomeClass [a]
+--
+-- >>> (singletonLayout instanceDeclaration) `parseCorrect'` "instance Show a => Show [a] where"
+-- instance Show a =>  Show [a]
+--
+-- No FlexibleContexts, so does not work:
+-- > (singletonLayout instanceDeclaration) `parseCorrect'` "instance Show [a] => Show  Either e a"
+--
+
+instanceDeclaration :: HParser (Range -> Declaration)
+instanceDeclaration = do
+    lexINSTANCE
+    ct <- option [] (try $ do {c <- scontext; lexDARROW ; return c} )
+    n  <- tycls
+    ts <- iType
+    ds <- option MaybeDeclarations_Nothing (try $ do lexWHERE
+                                                     d <- idecls
+                                                     return (MaybeDeclarations_Just d))
+    return $ \r -> Declaration_Instance r ct n [ts] ds
 
 derivings :: HParser [Name]
 derivings = 

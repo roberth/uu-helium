@@ -1,6 +1,6 @@
 
 # Set terminal title
-echo -ne "\033]0;unit-tests\007"
+echo -ne "\033]0;doctests\007"
 
 # test.ghci contains command definitions for easy iteration during
 #  development.
@@ -19,7 +19,7 @@ echo -ne "\033]0;unit-tests\007"
 # early tests to wait.
 
 threads="-j4 +RTS -N"
-command="cabal configure --enable-tests -f reloadable && (cd src && make) && cabal repl --ghc-options='-ghci-script=.test.ghci $threads' helium-test"
+command="cabal configure --enable-tests -f reloadable && (cd src && make) && cabal repl --ghc-options='-ghci-script=.test.ghci $threads' helium-doctests"
 
 if which nix-shell >/dev/null
 then nix-shell --run "$command"

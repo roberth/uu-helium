@@ -1,3 +1,4 @@
+
 {-| Module      :  Compilation
     License     :  GPL
 
@@ -8,29 +9,27 @@
 
 module Helium.Compilation where
 
-import Helium.Main.PhaseLexer
-import Helium.Main.PhaseParser
-import Helium.Main.PhaseImport
-import Helium.Main.PhaseResolveOperators
-import Helium.Main.PhaseStaticChecks
-import Helium.Main.PhaseKindInferencer
-import Helium.Main.PhaseTypingStrategies
-import Helium.Main.PhaseTypeInferencer
-import Helium.Main.PhaseDesugarer
-import Helium.Main.PhaseCodeGenerator
-import Helium.Main.CompileUtils
-import Helium.Parser.Lexer (checkTokenStreamForClassOrInstance)
-import Helium.Main.Args (overloadingFromOptions)
-import Helium.StaticAnalysis.Messages.StaticErrors(errorsLogCode)
-import Helium.StaticAnalysis.Messages.Messages(HasMessage,sortMessages)
-import Helium.StaticAnalysis.Messages.HeliumMessages(showMessage)
-import Control.Applicative
-import Control.Monad(void)
-import Helium.MonadCompile
+import           Helium.Main.Args                              (overloadingFromOptions)
+import           Helium.Main.CompileUtils
+import           Helium.Main.PhaseCodeGenerator
+import           Helium.Main.PhaseDesugarer
+import           Helium.Main.PhaseImport
+import           Helium.Main.PhaseKindInferencer
+import           Helium.Main.PhaseLexer
+import           Helium.Main.PhaseParser
+import           Helium.Main.PhaseResolveOperators
+import           Helium.Main.PhaseStaticChecks
+import           Helium.Main.PhaseTypeInferencer
+import           Helium.Main.PhaseTypingStrategies
+import           Helium.MonadCompile
+import           Helium.Parser.Lexer                           (checkTokenStreamForClassOrInstance)
+import           Helium.StaticAnalysis.Messages.HeliumMessages (showMessage)
+import           Helium.StaticAnalysis.Messages.Messages       (HasMessage,
+                                                                sortMessages)
+import           Helium.StaticAnalysis.Messages.StaticErrors   (errorsLogCode)
 
-
-
-compile :: MonadCompile m => String -> String -> [String] -> m ()
+compile :: MonadCompile m =>
+           String -> [Char] -> [String] -> m ()
 compile basedir fullName doneModules =
     do
         logMessage ("Compiling " ++ fullName)
@@ -46,7 +45,7 @@ compile basedir fullName doneModules =
         (lexerWarnings, tokens) <-
             doPhaseWithExit 20 (const "L") compileOptions $
                 phaseLexer fullName contents options
-        
+
         whenDisabled_ NoWarnings $
             printSortedWarnings lexerWarnings
 
@@ -59,23 +58,24 @@ compile basedir fullName doneModules =
                 abort
 
         -- Phase 2: Parsing
-        parsedModule <- 
+        parsedModule <-
             doPhaseWithExit 20 (const "P") compileOptions $
                phaseParser fullName tokens options
 
         -- Phase 3: Importing
         (indirectionDecls, importEnvs) <-
             phaseImport fullName parsedModule
-        
+
         -- Phase 4: Resolving operators
-        resolvedModule <- 
+        resolvedModule <-
             doPhaseWithExit 20 (const "R") compileOptions $
                phaseResolveOperators parsedModule importEnvs options
 
         whenEnabled_ StopAfterParser abort
 
         -- Phase 5: Static checking
-        (localEnv, typeSignatures, staticWarnings) <-
+        (localEnv, typeSignatures, staticWarnings) <- do
+            logMessage $ "Import envs: " ++ (show importEnvs)
             doPhaseWithExit 20 (("S"++) . errorsLogCode) compileOptions $
                phaseStaticChecks fullName resolvedModule importEnvs options
 
@@ -86,9 +86,9 @@ compile basedir fullName doneModules =
 
         -- Phase 6: Kind inferencing (by default turned off)
         let combinedEnv = foldr combineImportEnvironments localEnv importEnvs
-        whenEnabled_ KindInferencing $
+        kindEnv <- whenEnabled KindInferencing $
            doPhaseWithExit maximumNumberOfKindErrors (const "K") compileOptions $
-              phaseKindInferencer combinedEnv resolvedModule options
+              phaseKindInferencer combinedEnv resolvedModule
 
         -- Phase 7: Type Inference Directives
         (beforeTypeInferEnv, typingStrategiesDecls) <-
@@ -105,18 +105,19 @@ compile basedir fullName doneModules =
         whenEnabled_ StopAfterTypeInferencing abort
 
         -- Phase 9: Desugaring
-        coreModule <-                
+        coreModule <-
             phaseDesugarer dictionaryEnv
-                           fullName resolvedModule 
-                           (typingStrategiesDecls ++ indirectionDecls) 
+                           fullName resolvedModule
+                           (typingStrategiesDecls ++ indirectionDecls)
+                           (nothingToEmpty kindEnv)
                            afterTypeInferEnv
-                           toplevelTypes 
+                           toplevelTypes
 
         whenEnabled_ StopAfterDesugar abort
 
         -- Phase 10: Code generation
         phaseCodeGenerator fullName coreModule
-        
+
         submitLog "C" fullName doneModules
 
         let number = length staticWarnings + length typeWarnings + length lexerWarnings
@@ -136,3 +137,6 @@ maximumNumberOfTypeErrors = 3
 maximumNumberOfKindErrors :: Int
 maximumNumberOfKindErrors = 1
 
+nothingToEmpty :: Monoid a => Maybe a -> a
+nothingToEmpty Nothing = mempty
+nothingToEmpty (Just x) = x

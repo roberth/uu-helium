@@ -4,8 +4,8 @@ mkDerivation {
   version = "1.8";
   src = fetchgit {
                          url = "https://github.com/roberth/uu-top";
-                         rev = "c65dd102d";
-                         sha256 = "c11a2da90a0cf743766c4f44ee9599b9f3dc750d8d119c94323bbe8454f05337";
+                         rev = "7661cf32c5a2ccee92fc1648fc17351c782f29f3";
+                         sha256 = "1v74l3bfhnxk9slwjj8jhpy2dznh6bx8p0xa1li3sr771xs5wamm";
                        };
   isLibrary = true;
   isExecutable = true;

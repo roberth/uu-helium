@@ -18,13 +18,15 @@ import Helium.ModuleSystem.ImportEnvironment()
 import Helium.ModuleSystem.DictionaryEnvironment (DictionaryEnvironment)
 import qualified Helium.CodeGeneration.CodeGeneration as CodeGeneration
 import Helium.MonadCompile
+import Helium.Main.PhaseKindInferencer(KindEnvironment)
 
 phaseDesugarer :: MonadCompile m =>
                   DictionaryEnvironment ->
                   String -> Module -> [CoreDecl] ->
+                  KindEnvironment ->
                   ImportEnvironment ->
                   TypeEnvironment -> m CoreModule
-phaseDesugarer dictionaryEnv fullName module_ extraDecls afterTypeInferEnv toplevelTypes = do
+phaseDesugarer dictionaryEnv fullName module_ extraDecls kindEnv afterTypeInferEnv toplevelTypes = do
     enterNewPhase "Desugaring"
 
     let (path, baseName, _) = splitFilePath fullName
@@ -43,6 +45,7 @@ en eigenlijk is afterTypeInferEnv te groot. alleen locale types en constructoren
                 CodeGeneration.Inh_Module {
                     CodeGeneration.dictionaryEnv_Inh_Module = dictionaryEnv,
                     CodeGeneration.extraDecls_Inh_Module    = extraDecls,
+                    CodeGeneration.kindEnv_Inh_Module       = kindEnv,
                     CodeGeneration.importEnv_Inh_Module     = afterTypeInferEnv,
                     CodeGeneration.toplevelTypes_Inh_Module = toplevelTypes }
 

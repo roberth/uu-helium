@@ -6,28 +6,29 @@
     Portability :  portable
 -}
 
-module Helium.Main.PhaseKindInferencer (phaseKindInferencer) where
+module Helium.Main.PhaseKindInferencer
+  ( phaseKindInferencer
+  , KindEnvironment
+  ) where
 
 import Helium.Main.CompileUtils
 import Helium.StaticAnalysis.Inferencers.KindInferencing as KI
--- import ImportEnvironment
-import qualified Data.Map as M
 import Top.Types
 import Helium.StaticAnalysis.Messages.KindErrors
 import Helium.MonadCompile
+import qualified Data.Map as M
 
-phaseKindInferencer :: MonadCompile m => ImportEnvironment -> Module -> [Option] -> m (Either [KindError] ())
-phaseKindInferencer importEnvironment module_ options =
-   do enterNewPhase "Kind inferencing"
-      let res = KI.wrap_Module (KI.sem_Module module_) KI.Inh_Module {
-                   KI.importEnvironment_Inh_Module = importEnvironment,
-                   KI.options_Inh_Module = options }
-      when (DumpTypeDebug `elem` options) $ 
-         do logMessage $ KI.debugString_Syn_Module res
-            logMessage . unlines . map (\(n,ks) -> show n++" :: "++showKindScheme ks) . M.assocs $ KI.kindEnvironment_Syn_Module res
-      case KI.kindErrors_Syn_Module res of
-      
-         _:_ ->
-            return (Left $ KI.kindErrors_Syn_Module res)
-         [] ->
-            return (Right ())
+phaseKindInferencer :: MonadCompile m => ImportEnvironment -> Module -> m (Either [KindError] KindEnvironment)
+phaseKindInferencer importEnvironment module_ =
+  do enterNewPhase "Kind inferencing"
+     options <- compilationOptions
+     let (debugString, kindEnv, kindErrors) = KI.inferKinds importEnvironment module_ options
+     whenEnabled_ DumpTypeDebug $ 
+         do logMessage $ debugString
+            logMessage "Kinds: ########################################"
+            logMessage . unlines . map (\(n,ks) -> show n++" :: "++showKindScheme ks) $ M.assocs $ kindEnv
+            logMessage "End kinds"
+
+     return $ case kindErrors of
+         _:_ -> Left kindErrors
+         [] -> Right kindEnv

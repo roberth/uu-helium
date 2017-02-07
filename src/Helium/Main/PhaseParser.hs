@@ -18,7 +18,7 @@ import Helium.MonadCompile
 phaseParser :: MonadCompile m =>
    String -> [Token] -> [Option] -> 
    m (Either [ParseError] Module)
-phaseParser fullName tokens options = do
+phaseParser fullName tokens _options = do
     enterNewPhase "Parsing"
     case runHParser module_ fullName tokens True of
         Left parseError ->

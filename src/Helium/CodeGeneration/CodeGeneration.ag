@@ -2,6 +2,7 @@ ATTR Module
    [   dictionaryEnv    : DictionaryEnvironment
        extraDecls       : { [Core.CoreDecl] }
        importEnv        : ImportEnvironment
+       kindEnv          : KindEnvironment
        toplevelTypes    : TypeEnvironment
    |
    |   core             : { Core.CoreModule }
@@ -18,34 +19,27 @@ INCLUDE "ToCorePat.ag"
 INCLUDE "ToCoreName.ag"
 
 imports{
-import Helium.Syntax.UHA_Syntax
-import Helium.Syntax.UHA_Utils
-import Helium.Syntax.UHA_Range 
-import Helium.ModuleSystem.ImportEnvironment
-import Helium.ModuleSystem.DictionaryEnvironment
+import           Data.Char (ord)
 import qualified Data.Map as M
-import Helium.StaticAnalysis.Miscellaneous.TypeConversion
-import Data.Char (ord)
-
-
-import Lvm.Common.Id
-import Lvm.Common.IdSet 
-import Helium.Utils.Utils(internalError)
-
-import Top.Types
-
-import Helium.CodeGeneration.PatternMatch
-import qualified Helium.CodeGeneration.DerivingShow as DerivingShow
+import           Helium.CodeGeneration.CoreUtils
+import           Helium.CodeGeneration.PatternMatch
 import qualified Helium.CodeGeneration.DerivingEq as DerivingEq
-
--- Semi-Daan
-import Helium.CodeGeneration.CoreUtils
-
--- Daan
+import qualified Helium.CodeGeneration.DerivingShow as DerivingShow
+import           Helium.ModuleSystem.DictionaryEnvironment
+import           Helium.ModuleSystem.ImportEnvironment
+import           Helium.StaticAnalysis.Miscellaneous.TypeConversion
+import           Helium.StaticAnalysis.Inferencers.KindInferencing(KindEnvironment)
+import           Helium.Syntax.UHA_Range 
+import           Helium.Syntax.UHA_Syntax
+import           Helium.Syntax.UHA_Utils
+import           Helium.Utils.Utils(internalError)
+import qualified Lvm.Common.Byte as Byte
+import           Lvm.Common.Id
+import           Lvm.Common.IdSet 
 import qualified Lvm.Core.Expr as Core
 import qualified Lvm.Core.Module as Core
 import qualified Lvm.Core.Module as Module
-import qualified Lvm.Common.Byte as Byte
+import           Top.Types
 }
 
 {
@@ -63,8 +57,10 @@ ATTR Body Declarations Declaration Expressions Expression Statements Statement
     [ dictionaryEnv : DictionaryEnvironment | | ]
 
 ATTR Body Declarations Declaration Constructor Constructors
-    [ importEnv     : ImportEnvironment | | ]
-    
+    [ importEnv     : ImportEnvironment
+      kindEnv       : KindEnvironment
+    | | ]
+
 SEM Expression        | Let  loc.importEnv = internalError "CodeGeneration.ag" "Expression.Let" ""
 SEM MaybeDeclarations | Just loc.importEnv = internalError "CodeGeneration.ag" "MaybeDeclarations.Just" ""      
 SEM Qualifier         | Let  loc.importEnv = internalError "CodeGeneration.ag" "Qualifier.Let" ""       

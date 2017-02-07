@@ -192,7 +192,24 @@ SEM Declaration
     --  constructor              : Constructor  -- has only one field, no strictness
     --  derivings                : Names
     
-    | Class             lhs.decls    = internalError "ToCoreDecl" "Declaration" "'class' not supported"
+    | Class             lhs.decls    =
+        let nameId = idFromString name
+            name = getNameName nameStr
+            nameStr = @simpletype.name
+            kindString = maybe (internalError "ToCoreDecl" "Class" "Kind has not been inferred.")
+                         show $
+                         nameStr `M.lookup` @lhs.kindEnv
+        in
+        [ Core.DeclCustom
+            { Core.declName    = nameId
+            , Core.declAccess  = Core.private
+            , Core.declKind    = (Core.DeclKindCustom . idFromString) "classdecl"
+            , Core.declCustoms =
+                        [ let 
+                          in Core.CustomBytes (bytesFromString kindString)
+                        ]
+                    }
+        ]
     --  range                    : Range
     --  context                  : ContextItems -- is a "simple" context
     --  simpletype               : SimpleType   -- Haskell 98 allows only one variable
@@ -250,7 +267,7 @@ SEM FunctionBinding [ | | core : { Core.Expr -> Core.Expr } ]
 {
 predicateToId :: Predicate -> Id
 predicateToId (Predicate class_ tp) =
-    idFromString $ "$dict" ++ class_ ++ show tp
+    idFromString $ "$dict" ++ class_ ++ "$" ++ show tp
     
 dictionaryTreeToCore :: DictionaryTree -> Core.Expr
 dictionaryTreeToCore theTree = 
@@ -259,7 +276,7 @@ dictionaryTreeToCore theTree =
          Core.Var (predicateToId predicate)
       ByInstance className instanceName trees ->
          foldl Core.Ap
-               (Core.Var (idFromString ("$dict"++className++instanceName)))
+               (Core.Var (idFromString ("$dict"++className++"$"++instanceName)))
                (map dictionaryTreeToCore trees)
       BySuperClass subClass superClass tree -> 
          Core.Ap (Core.Var (idFromString ("$get" ++ superClass ++ "From" ++ subClass)))          

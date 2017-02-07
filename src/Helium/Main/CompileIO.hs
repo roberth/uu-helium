@@ -60,26 +60,6 @@ instance MonadCompile CompileIO where
   setDebugFileName = liftIO . writeIORef refToCurrentFileName
   setDebugDoneModules = liftIO . writeIORef refToCurrentImported
 
-  doPhaseWithExit nrOfMsgs code (_, fullName, doneModules) phase =
-   (do result <- phase
-       case result of
-         Left errs ->
-            do submitLog (code errs) fullName doneModules
-               liftIO $ showErrorsAndExit' errs nrOfMsgs
-         Right a ->
-            return a)
-    where
-      showErrorsAndExit' :: HasMessage a => [a] -> Int -> IO b
-      showErrorsAndExit' errors maximumNumber = do
-          let someErrors = take maximumNumber (sortMessages errors)
-          showMessages someErrors
-          when (number > maximumNumber) $
-            putStrLn "(...)\n"
-          putStrLn ("Compilation failed with " ++ show number ++
-                    " error" ++ (if number == 1 then "" else "s"))
-          exitWith (ExitFailure 1)
-        where
-          number = length errors
 
 
 
@@ -108,3 +88,4 @@ instance MonadCompile CompileIO where
   createNameSupply = liftIO newNameSupply
 
   submitLog code name modules = (liftIO . sendLog code name modules) =<< compilationOptions
+

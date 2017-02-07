@@ -20,7 +20,7 @@ import Helium.Utils.Utils
 dataDictionary :: UHA.Declaration -> CoreDecl
 dataDictionary  (UHA.Declaration_Data _ _ (UHA.SimpleType_SimpleType _ name names) constructors _) =
     DeclValue 
-    { declName    = idFromString ("$dictEq" ++ getNameName name)
+    { declName    = idFromString ("$dictEq$" ++ getNameName name)
     , declAccess  = public
     , valueEnc    = Nothing
     , valueValue  = eqFunction names constructors
@@ -90,7 +90,7 @@ eqFunForType :: UHA.Type -> Expr
 eqFunForType t = 
     case t of
         UHA.Type_Variable _ n             -> Var (idFromName n) 
-        UHA.Type_Constructor _ n          -> var ("$dictEq" ++ show n)
+        UHA.Type_Constructor _ n          -> var ("$dictEq$" ++ show n)
         UHA.Type_Application _ _ f xs     -> foldl Ap (eqFunForType f) (map eqFunForType xs)
         UHA.Type_Parenthesized _ ty       -> eqFunForType  ty
         _ -> internalError "DerivingEq" "eqFunForType" "unsupported type"

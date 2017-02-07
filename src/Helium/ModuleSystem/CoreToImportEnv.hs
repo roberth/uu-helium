@@ -8,21 +8,26 @@
 
 module Helium.ModuleSystem.CoreToImportEnv(getImportEnvironment) where
 
+import qualified Data.Map as M
+import Helium.ModuleSystem.ImportEnvironment
+import Helium.ModuleSystem.KindParser
+import Helium.Parser.Lexer(lexer)
+import Helium.Parser.OperatorTable
+import Helium.Parser.ParseLibrary
+import Helium.Parser.Parser(type_, contextAndType)
+import Helium.StaticAnalysis.Miscellaneous.TypeConversion
+import Helium.Syntax.UHA_Range(makeImportRange, setNameRange)
+import Helium.Syntax.UHA_Syntax
+import Helium.Syntax.UHA_Utils
+import Helium.Utils.Utils
+import Lvm.Common.Byte(stringFromBytes)
+import Lvm.Common.Id
 import Lvm.Core.Expr
 import Lvm.Core.Utils
-import Helium.Utils.Utils
-import Helium.StaticAnalysis.Miscellaneous.TypeConversion
-import Helium.Parser.ParseLibrary
-import Helium.Parser.Lexer(lexer)
-import Helium.Parser.Parser(type_, contextAndType)
-import Helium.ModuleSystem.ImportEnvironment
-import Helium.Syntax.UHA_Utils
-import Lvm.Common.Id
-import Helium.Syntax.UHA_Syntax
-import Helium.Parser.OperatorTable
 import Top.Types
-import Lvm.Common.Byte(stringFromBytes)
-import Helium.Syntax.UHA_Range(makeImportRange, setNameRange)
+import Top.Types.Schemes
+
+import Debug.Trace
 
 typeFromCustoms :: String -> [Custom] -> TpScheme
 typeFromCustoms n [] =
@@ -115,6 +120,7 @@ makeImportName importedInMod importedFromMod n =
 getImportEnvironment :: String -> [CoreDecl] -> ImportEnvironment
 getImportEnvironment importedInModule = foldr insert emptyEnvironment
    where
+      insert :: CoreDecl -> ImportEnvironment -> ImportEnvironment
       insert decl = 
          case decl of 
          
@@ -187,6 +193,20 @@ getImportEnvironment importedInModule = foldr insert emptyEnvironment
               in case reads text of 
                     [(rule, [])] -> addTypingStrategies rule
                     _ -> intErr "Could not parse typing strategy from core file"
+                    
+           -- class decls
+           DeclCustom { declName    = nameId
+                      , declKind    = DeclKindCustom ident
+                      , declCustoms = cs
+                      }
+                      | stringFromId ident == "classdecl" ->
+              let CustomBytes kindBytes : _ = cs
+                  kindString = stringFromBytes kindBytes
+                  kindTp = either (internalError "CoreToImportEnv" "classdecl") id $
+                           parseKind kindString
+                  kindTpScheme = toTpScheme kindTp
+              in addClassKinds (ClassKindEnvironment $
+                                 M.singleton (nameFromId nameId) kindTpScheme )
 
            -- !!! Print importedFromModId from "declAccess = Imported{importModule = importedFromModId}" as well
            DeclAbstract{ declName = n } ->

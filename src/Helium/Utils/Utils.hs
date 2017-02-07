@@ -18,6 +18,7 @@ import Data.List (group, groupBy, sort, elemIndex)
 import qualified Control.Exception as CE (catch, IOException, evaluate)
 import System.FilePath
 import Helium.Utils.Logger
+import Data.Function(on)
 
 -- | Concrete representation of holes
 hole :: String
@@ -152,3 +153,14 @@ readSourceFile fullName =
 maxInt, minInt :: Integer
 maxInt = 1073741823
 minInt = -1073741823
+
+-- | Construct an uncurried mappend by applying a function to the arguments.
+--
+-- Lets one write mappend easily for product types, as follows:
+--
+-- {{{
+-- data MyType = Constructor { theFirst :: [Int], theSecond :: [Char] }
+-- mappend = curry (Constructor <$> mappendOn theInt <*> mappendOn theSecond)
+-- }}}
+mappendOn :: Monoid m => (a -> m) -> (a, a) -> m
+mappendOn f = uncurry (mappend `on` f)

@@ -2,9 +2,9 @@
 # Re-run ./cabal2nix when the dependencies in the cabal
 # file have changed.
 
-{ mkDerivation, base, bytestring, containers, directory, filepath
-, lvmlib, mtl, network, parsec, process, stdenv, tasty, tasty-hunit
-, Top, transformers, wl-pprint
+{ mkDerivation, base, bytestring, containers, directory, doctest
+, filepath, freer, lvmlib, mtl, network, parsec, process, stdenv
+, tasty, tasty-hunit, Top, transformers, wl-pprint
 }:
 mkDerivation {
   pname = "helium";
@@ -21,8 +21,9 @@ mkDerivation {
     process Top transformers wl-pprint
   ];
   testHaskellDepends = [
-    base bytestring containers directory filepath lvmlib mtl network
-    parsec process tasty tasty-hunit Top transformers wl-pprint
+    base bytestring containers directory doctest filepath freer lvmlib
+    mtl network parsec process tasty tasty-hunit Top transformers
+    wl-pprint
   ];
   homepage = "http://www.cs.uu.nl/wiki/bin/view/Helium/WebHome";
   description = "The Helium Compiler";
